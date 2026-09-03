@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Drone Delivery Lab - 2D Simulation</title>
   
-  <!-- 1. Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 2. 레트로 폰트 (VT323) -->
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 
   <style>
@@ -19,7 +17,6 @@
       image-rendering: pixelated; 
       image-rendering: crisp-edges;
     }
-    /* CRT 스캔라인 라인 효과 */
     .scanlines {
       background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
       background-size: 100% 4px;
@@ -28,21 +25,18 @@
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col lg:flex-row overflow-hidden select-none">
 
-  <!-- 🎮 왼쪽: 메인 게임 화면 레트로 뷰어 -->
+  <!-- 🎮 메인 게임 화면 -->
   <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 bg-slate-900 relative">
     
-    <!-- 캔버스 프레임 컨테이너 -->
     <div class="w-full max-w-5xl aspect-video bg-sky-900 border-4 border-slate-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.8)] relative flex items-center justify-center overflow-hidden">
       
-      <!-- 게임 캔버스 -->
       <canvas id="gameCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
 
-      <!-- 스캔라인 레이어 -->
       <div class="scanlines absolute inset-0 pointer-events-none z-10"></div>
 
-      <!-- 좌측 하단 레트로 가이드 -->
-      <div class="absolute bottom-3 left-3 bg-black/80 border-2 border-slate-600 px-3 py-1.5 text-base text-green-400 z-20">
-        🎮 [↑/W] 추력 | [←/A][→/D] 기울기
+      <!-- 조작 가이드 & 시작 안내 -->
+      <div id="startGuide" class="absolute bottom-3 left-3 bg-black/80 border-2 border-slate-600 px-3 py-1.5 text-base text-yellow-400 z-20 animate-pulse">
+        ▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!
       </div>
 
       <!-- 🏆 착륙 결과 팝업 UI -->
@@ -67,7 +61,7 @@
           </div>
 
           <button id="retryBtn" class="bg-green-600 hover:bg-green-500 text-black border-2 border-black font-bold px-6 py-2 text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
-            RETRY MISSION
+            NEXT / RETRY MISSION
           </button>
         </div>
       </div>
@@ -75,7 +69,7 @@
     </div>
   </main>
 
-  <!-- 📊 오른쪽: 조종 대시보드 및 관제 패널 -->
+  <!-- 📊 오른쪽: 조종 대시보드 -->
   <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-slate-700 p-6 flex flex-col gap-5 justify-between">
     <div class="flex flex-col gap-4">
       <header>
@@ -83,7 +77,6 @@
         <p class="text-slate-400 text-lg">:: 2D AEROSPACE SIMULATOR ::</p>
       </header>
 
-      <!-- 텔레메트리 센서 데이터 -->
       <section class="bg-black border-2 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
         <h3 class="text-yellow-400 font-bold mb-2 text-lg">📟 TELEMETRY DATA</h3>
         <div class="grid grid-cols-2 gap-3 text-xl">
@@ -98,14 +91,11 @@
         </div>
       </section>
 
-      <!-- 안전 기준 가이드 -->
       <section class="bg-slate-800 border-2 border-slate-700 p-3 text-sm text-slate-300">
-        <p class="text-green-400 font-bold mb-1">⚠️ SAFETY LANDING LIMITS</p>
-        <ul class="list-disc list-inside space-y-0.5 text-slate-400">
-          <li>수직 속도: 2.0 m/s 이하</li>
-          <li>수평 속도: 1.5 m/s 이하</li>
-          <li>기체 기울기: ±10° 이내</li>
-        </ul>
+        <p class="text-green-400 font-bold mb-1">⚠️ MISSION OBJECTIVE</p>
+        <p class="text-slate-300 mb-2">초록색 네온 화살표가 가리키는 <b>[TARGET]</b> 패드에 안전하게 착륙하세요!</p>
+        <p class="text-yellow-400 font-bold mb-1">🚨 OBSTACLE WARNING</p>
+        <p class="text-slate-400">중간에 있는 붉은색 구조물 타워를 피해 비행하세요.</p>
       </section>
     </div>
 
@@ -118,7 +108,6 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  // UI 요소
   const resultModal = document.getElementById('resultModal');
   const modalTitle = document.getElementById('modalTitle');
   const modalSub = document.getElementById('modalSub');
@@ -126,65 +115,111 @@
   const logVx = document.getElementById('logVx');
   const logAngle = document.getElementById('logAngle');
   const retryBtn = document.getElementById('retryBtn');
+  const startGuide = document.getElementById('startGuide');
 
   const uiPitch = document.getElementById('uiPitch');
   const uiVy = document.getElementById('uiVy');
 
-  // 게임 상태
   let gameState = 'PLAYING';
+  let isEngineStarted = false;
+  let pulseTimer = 0; // 네온 가이드 애니메이션 타이머
   
   const drone = {
-    x: 100, y: 150,
+    x: 80, y: 150,
     vx: 0, vy: 0,
     angle: 0, angularVelocity: 0,
     targetAngle: 0,
     mass: 1.5
   };
 
+  // 🎯 가변형 목적지 (착륙 패드)
   const landingPad = { x: 620, y: 280, width: 80, height: 10 };
+
+  // 🚧 장애물 기둥 구조물
+  const obstacle = { x: 380, y: 180, width: 45, height: 240 };
+
   const SAFETY_LIMITS = { maxVy: 2.0, maxVx: 1.5, maxAngle: 0.175 };
 
   const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
-  window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
-  window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+  window.addEventListener('keydown', e => { 
+    if (keys.hasOwnProperty(e.code)) {
+      keys[e.code] = true;
+      if (!isEngineStarted && gameState === 'PLAYING') {
+        isEngineStarted = true;
+        startGuide.textContent = '🎮 [↑/W] 추력 | [←/A][→/D] 기울기';
+        startGuide.classList.remove('animate-pulse', 'text-yellow-400');
+        startGuide.classList.add('text-green-400');
+      }
+    }
+  });
+
+  window.addEventListener('keyup', e => { 
+    if (keys.hasOwnProperty(e.code)) keys[e.code] = false; 
+  });
 
   retryBtn.addEventListener('click', resetGame);
 
+  // 🎲 무작위 매뉴버 난이도 생성 (장소 변경 및 장애물 재배치)
+  function randomizeStage() {
+    // 목적지 아파트 베란다 높이와 위치 랜덤화 (X: 550~680, Y: 180~320)
+    landingPad.x = Math.floor(Math.random() * 130) + 550;
+    landingPad.y = Math.floor(Math.random() * 140) + 180;
+
+    // 중간 장애물 위치 및 높이 무작위 재배치
+    obstacle.x = Math.floor(Math.random() * 100) + 330;
+    obstacle.height = Math.floor(Math.random() * 120) + 180;
+    obstacle.y = 420 - obstacle.height;
+  }
+
   function resetGame() {
-    drone.x = 100; drone.y = 150;
+    drone.x = 80; drone.y = 150;
     drone.vx = 0; drone.vy = 0;
     drone.angle = 0; drone.angularVelocity = 0;
     gameState = 'PLAYING';
+    isEngineStarted = false;
+    
+    randomizeStage(); // 무작위 장소 & 장애물 새로 할당
+
+    startGuide.textContent = '▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!';
+    startGuide.classList.add('animate-pulse', 'text-yellow-400');
+    startGuide.classList.remove('text-green-400');
+
     resultModal.classList.add('hidden');
   }
 
   function update() {
+    pulseTimer += 0.05;
+
     if (gameState === 'PLAYING') {
       const dt = 0.016;
-      const isThrusting = keys.ArrowUp || keys.KeyW;
-      const thrust = isThrusting ? 45 : 0;
 
-      if (keys.ArrowLeft || keys.KeyA) drone.targetAngle = -0.5;
-      else if (keys.ArrowRight || keys.KeyD) drone.targetAngle = 0.5;
-      else drone.targetAngle = 0;
+      if (isEngineStarted) {
+        const isThrusting = keys.ArrowUp || keys.KeyW;
+        const thrust = isThrusting ? 45 : 0;
 
-      drone.angularVelocity += (drone.targetAngle - drone.angle) * 10 * dt;
-      drone.angle += drone.angularVelocity * dt;
-      drone.angularVelocity *= 0.9;
+        if (keys.ArrowLeft || keys.KeyA) drone.targetAngle = -0.5;
+        else if (keys.ArrowRight || keys.KeyD) drone.targetAngle = 0.5;
+        else drone.targetAngle = 0;
 
-      const gravity = 9.8;
-      const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
-      const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2.2)) / drone.mass;
+        drone.angularVelocity += (drone.targetAngle - drone.angle) * 10 * dt;
+        drone.angle += drone.angularVelocity * dt;
+        drone.angularVelocity *= 0.9;
 
-      drone.vx += ax * dt;
-      drone.vy += ay * dt;
-      drone.x += drone.vx;
-      drone.y += drone.vy;
+        const gravity = 9.8;
+        const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
+        const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2.2)) / drone.mass;
+
+        drone.vx += ax * dt;
+        drone.vy += ay * dt;
+        drone.x += drone.vx;
+        drone.y += drone.vy;
+
+        checkCollisions();
+      }
 
       uiPitch.textContent = `${(drone.angle * (180 / Math.PI)).toFixed(1)}°`;
       uiVy.textContent = `${(-drone.vy * 0.5).toFixed(1)} m/s`;
-
-      checkCollisions();
     }
 
     draw();
@@ -193,9 +228,11 @@
 
   function checkCollisions() {
     const droneBottom = drone.y + 15;
+    const droneTop = drone.y - 15;
     const droneLeft = drone.x - 20;
     const droneRight = drone.x + 20;
 
+    // 1. 착륙 패드 감지
     const isOverPad = droneRight > landingPad.x && droneLeft < (landingPad.x + landingPad.width);
     const isTouchingPad = droneBottom >= landingPad.y && droneBottom <= landingPad.y + 12 && drone.vy >= 0;
 
@@ -204,11 +241,21 @@
       return;
     }
 
-    if (droneRight > 600 && drone.y > 200 && !isOverPad) {
-      triggerMissionResult(false, "아파트 벽면에 충돌했습니다!");
+    // 2. 장애물 타워 충돌 감지
+    const hitObstacleX = droneRight > obstacle.x && droneLeft < (obstacle.x + obstacle.width);
+    const hitObstacleY = droneBottom > obstacle.y;
+    if (hitObstacleX && hitObstacleY) {
+      triggerMissionResult(false, "중간 장애물 구조물에 충돌했습니다!");
       return;
     }
 
+    // 3. 목적지 아파트 벽면 충돌 감지
+    if (droneRight > landingPad.x - 10 && drone.y > landingPad.y && !isOverPad) {
+      triggerMissionResult(false, "아파트 건물 벽면에 충돌했습니다!");
+      return;
+    }
+
+    // 4. 바닥 추락 감지
     if (droneBottom >= 420) {
       triggerMissionResult(false, "목적지를 벗어나 바닥에 추락했습니다!");
     }
@@ -261,28 +308,55 @@
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 하늘 및 구름
+    // 1. 하늘 배경
     const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     skyGradient.addColorStop(0, '#0284c7');
     skyGradient.addColorStop(1, '#38bdf8');
     ctx.fillStyle = skyGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 아파트 및 베란다
+    // 2. 목적지 아파트 건물
     ctx.fillStyle = '#334155';
-    ctx.fillRect(600, 180, 200, 270);
+    ctx.fillRect(landingPad.x - 10, landingPad.y + 10, 250, 420 - landingPad.y);
 
-    // 베란다 착륙대
+    // 3. 베란다 착륙 패드
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(landingPad.x, landingPad.y + landingPad.height, landingPad.width, 4);
 
-    // 바닥
+    // 4. 🎯 목적지 네온 표시기 (착륙 지점 강조)
+    const floatOffset = Math.sin(pulseTimer * 3) * 6; // 상하 위아래 바운싱 애니메이션
+    const padCenterX = landingPad.x + landingPad.width / 2;
+    const indicatorY = landingPad.y - 35 + floatOffset;
+
+    // 네온 화살표
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(padCenterX, indicatorY + 15);
+    ctx.lineTo(padCenterX - 12, indicatorY);
+    ctx.lineTo(padCenterX + 12, indicatorY);
+    ctx.closePath();
+    ctx.fill();
+
+    // TARGET 텍스트
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 16px VT323, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼ TARGET', padCenterX, indicatorY - 5);
+
+    // 5. 🚧 장애물 타워 기둥
+    ctx.fillStyle = '#991b1b'; // 경고성 붉은색 구조물
+    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+    // 장애물 테두리 Stripe 패턴
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, 6);
+
+    // 6. 바닥
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 420, canvas.width, 30);
 
-    // 드론
+    // 7. 드론 렌더링
     ctx.save();
     ctx.translate(drone.x, drone.y);
     ctx.rotate(drone.angle);
@@ -295,6 +369,8 @@
     ctx.restore();
   }
 
+  // 초기 무작위 매뉴버 할당 후 실행
+  randomizeStage();
   update();
 </script>
 </body>
