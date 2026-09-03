@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Drone Lab - Round Trip</title>
+  <title>Pixel Drone Lab - Custom Artwork Edition</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
@@ -73,8 +73,8 @@
   <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-slate-700 p-6 flex flex-col gap-5 justify-between">
     <div class="flex flex-col gap-4">
       <header>
-        <h1 class="text-4xl font-bold text-green-400 tracking-wider">PIXEL DRONE</h1>
-        <p class="text-slate-400 text-lg">:: ROUND-TRIP CITY SIMULATOR ::</p>
+        <h1 class="text-4xl font-bold text-sky-400 tracking-wider">PIXEL CITY</h1>
+        <p class="text-slate-400 text-lg">:: 8-BIT DRONE SIMULATOR ::</p>
       </header>
 
       <section class="bg-black border-2 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
@@ -92,14 +92,14 @@
       </section>
 
       <section class="bg-slate-800 border-2 border-slate-700 p-3 text-sm text-slate-300">
-        <p class="text-green-400 font-bold mb-1">🔁 MISSION MODE</p>
+        <p class="text-sky-400 font-bold mb-1">🔁 MISSION MODE</p>
         <p id="directionInfo" class="text-yellow-300 font-bold mb-2">현재 방향: [왼쪽 ➔ 오른쪽]</p>
-        <p class="text-slate-400">중간에 솟아있는 아파트 건물을 피해 반대편 패드 <b>[TARGET]</b>에 도착하세요.</p>
+        <p class="text-slate-400">중간 아사쿠사 풍 픽셀 아파트 단지를 우회하여 착륙지 <b>[TARGET]</b>에 무사히 도달하세요.</p>
       </section>
     </div>
 
     <footer class="text-xs text-slate-500 text-center">
-      HTML5 Canvas Pixel Art Engine
+      HTML5 Canvas Custom Pixel Art Shader
     </footer>
   </aside>
 
@@ -123,7 +123,7 @@
   let gameState = 'PLAYING';
   let isEngineStarted = false;
   let pulseTimer = 0;
-  let isReverseDirection = false; // 🔁 반대 방향(오른쪽->왼쪽) 비행 여부
+  let isReverseDirection = false;
   
   const drone = {
     x: 80, y: 150,
@@ -133,12 +133,11 @@
     mass: 1.5
   };
 
-  // 🎯 가변 목적지 및 출발지 설정
   const startPad = { x: 40, y: 320, width: 80, height: 10 };
   const landingPad = { x: 680, y: 280, width: 80, height: 10 };
 
-  // 🏢 장애물 역할을 할 중앙 픽셀 아파트 건물
-  const apartmentObstacle = { x: 360, y: 120, width: 80, height: 300 };
+  // 이미지 2 비율의 픽셀 아파트 건물 장애물
+  const apartmentObstacle = { x: 360, y: 110, width: 90, height: 310 };
 
   const SAFETY_LIMITS = { maxVy: 2.0, maxVx: 1.5, maxAngle: 0.175 };
   const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
@@ -163,14 +162,12 @@
 
   function onNextOrRetry() {
     if (gameState === 'SUCCESS') {
-      // 성공했을 경우 방향 반전 (왕복 미션)
       isReverseDirection = !isReverseDirection;
     }
     resetGame();
   }
 
   function resetGame() {
-    // 방향에 따라 드론 및 목적지 위치 변경
     if (!isReverseDirection) {
       drone.x = 80; drone.y = 280;
       startPad.x = 40; startPad.y = 320;
@@ -188,8 +185,7 @@
     gameState = 'PLAYING';
     isEngineStarted = false;
     
-    // 중앙 아파트 장애물 높이/위치 가변 처리
-    apartmentObstacle.y = 100 + Math.floor(Math.random() * 60);
+    apartmentObstacle.y = 90 + Math.floor(Math.random() * 50);
 
     startGuide.textContent = '▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!';
     startGuide.classList.add('animate-pulse', 'text-yellow-400');
@@ -241,7 +237,6 @@
     const droneLeft = drone.x - 20;
     const droneRight = drone.x + 20;
 
-    // 1. 착륙 패드 감지
     const isOverPad = droneRight > landingPad.x && droneLeft < (landingPad.x + landingPad.width);
     const isTouchingPad = droneBottom >= landingPad.y && droneBottom <= landingPad.y + 12 && drone.vy >= 0;
 
@@ -250,15 +245,13 @@
       return;
     }
 
-    // 2. 아파트 장애물 충돌 감지
     const hitAptX = droneRight > apartmentObstacle.x && droneLeft < (apartmentObstacle.x + apartmentObstacle.width);
     const hitAptY = droneBottom > apartmentObstacle.y;
     if (hitAptX && hitAptY) {
-      triggerMissionResult(false, "중앙 아파트 건물에 충돌했습니다!");
+      triggerMissionResult(false, "아파트 건물 외벽에 충돌했습니다!");
       return;
     }
 
-    // 3. 화면 외곽 / 바닥 추락
     if (droneBottom >= 420 || droneLeft < 0 || droneRight > 800) {
       triggerMissionResult(false, "비행 구역을 벗어나 추락했습니다!");
     }
@@ -274,10 +267,10 @@
     const isAngleSafe = absAngle <= SAFETY_LIMITS.maxAngle;
 
     if (isVySafe && isVxSafe && isAngleSafe) {
-      const msg = isReverseDirection ? "복귀 성공! 무사히 본부로 돌아왔습니다." : "배달 성공! 반대편 패드에 안전하게 도착했습니다.";
+      const msg = isReverseDirection ? "복귀 성공! 무사히 본부로 돌아왔습니다." : "배달 성공! 안전하게 도착했습니다.";
       triggerMissionResult(true, msg);
     } else {
-      triggerMissionResult(false, "거친 착륙으로 기체가 파손되었습니다!");
+      triggerMissionResult(false, "거친 착륙으로 화물이 손상되었습니다!");
     }
   }
 
@@ -311,68 +304,138 @@
     resultModal.classList.remove('hidden');
   }
 
-  // 🎨 픽셀 아트 배경 및 아파트 직접 렌더링 함수
+  // 🖼️ 이미지 1 스타일: 8비트 감성 하늘 & 도시 스카이라인 렌더링
   function drawPixelBackground() {
-    // 이미지 1 감성: 푸른 픽셀 하늘 & 도시 스카이라인
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, 420);
+    // 1. 하늘 파스텔 그라데이션
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
     skyGrad.addColorStop(0, '#38bdf8');
-    skyGrad.addColorStop(0.4, '#0284c7');
-    skyGrad.addColorStop(0.8, '#1e3a8a');
-    skyGrad.addColorStop(1, '#0f172a');
+    skyGrad.addColorStop(0.3, '#7dd3fc');
+    skyGrad.addColorStop(0.6, '#bae6fd');
+    skyGrad.addColorStop(1, '#e0f2fe');
     ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvas.width, 240);
 
-    // 원경 실루엣 빌딩
-    ctx.fillStyle = '#1e293b';
-    for(let i=0; i<15; i++) {
-      ctx.fillRect(i*60, 200 + (i%3)*20, 45, 220);
+    // 2. 도트 초승달 & 별
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(620, 30, 20, 20); // 달 기본
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(615, 25, 18, 20); // 달 깎아내기
+
+    // 3. 도트 구름 레이어
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for(let i=0; i<8; i++) {
+      ctx.fillRect(i * 110 - 20, 70, 90, 24);
+      ctx.fillRect(i * 110, 60, 60, 15);
     }
-    ctx.fillStyle = '#334155';
-    for(let i=0; i<10; i++) {
-      ctx.fillRect(i*85 + 20, 250 - (i%4)*15, 55, 200);
+
+    // 4. 원경 도시 레이어 (연한 민트 푸른색)
+    ctx.fillStyle = '#7dd3fc';
+    for(let i=0; i<16; i++) {
+      const h = 80 + (i % 5) * 18;
+      ctx.fillRect(i * 52, 220 - h, 48, h);
+    }
+
+    // 5. 중경 도시 레이어 (진한 파랑/민트 실루엣)
+    ctx.fillStyle = '#0284c7';
+    for(let i=0; i<12; i++) {
+      const h = 100 + (i % 4) * 25;
+      ctx.fillRect(i * 70 - 10, 250 - h, 60, h + 100);
+      // 창문 불빛
+      ctx.fillStyle = '#fef08a';
+      if(i % 2 === 0) ctx.fillRect(i * 70 + 10, 250 - h + 15, 6, 6);
+      ctx.fillStyle = '#0284c7';
+    }
+
+    // 6. 하단 수면 / 반사 레이어 (이미지 1 하단 강물)
+    const waterGrad = ctx.createLinearGradient(0, 350, 0, 450);
+    waterGrad.addColorStop(0, '#0369a1');
+    waterGrad.addColorStop(1, '#0c4a6e');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(0, 350, canvas.width, 100);
+
+    // 수면 반사 빛
+    ctx.fillStyle = '#38bdf8';
+    for(let j=0; j<8; j++) {
+      ctx.fillRect(100 + j*80, 370 + (j%3)*12, 30, 3);
     }
   }
 
+  // 🏢 이미지 2 스타일: 아사쿠사 픽셀 아파트 장애물 렌더링
   function drawPixelApartment(x, y, width, height) {
-    // 이미지 2 감성: 타일형 픽셀 아파트 타워
-    ctx.fillStyle = '#cbd5e1'; // 타일 외벽 기본색
+    // 외벽 타일 색상 (밝은 회색/민트 톤)
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillRect(x, y, width, height);
 
-    ctx.fillStyle = '#0f172a'; // 창문/베란다
-    const floors = Math.floor(height / 35);
-    for(let f = 0; f < floors; f++) {
-      const fy = y + 10 + f * 35;
-      ctx.fillRect(x + 10, fy, width - 20, 20); // 베란다 창문
-      ctx.fillStyle = '#38bdf8'; // 에어컨 실외기/창문 불빛
-      ctx.fillRect(x + 15, fy + 4, 12, 12);
-      ctx.fillStyle = '#f43f5e'; // 빨래/화분 느낌의 액센트 픽셀
-      ctx.fillRect(x + 35, fy + 12, 10, 4);
-      ctx.fillStyle = '#475569';
+    // 외벽 타일 격자 패턴
+    ctx.fillStyle = '#cbd5e1';
+    for(let ty = y; ty < y + height; ty += 8) {
+      ctx.fillRect(x, ty, width, 1);
     }
 
-    // 옥상 구조물
-    ctx.fillStyle = '#64748b';
-    ctx.fillRect(x + 15, y - 15, 30, 15);
-    ctx.fillRect(x + 50, y - 10, 15, 10);
+    // 층별 베란다 및 구조물
+    const floorHeight = 42;
+    const floors = Math.floor(height / floorHeight);
+
+    for(let f = 0; f < floors; f++) {
+      const fy = y + 15 + f * floorHeight;
+
+      // 베란다 펜스 & 난간
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + 12, fy, width - 24, 22);
+
+      // 창문 안쪽 난간
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + 16, fy + 4, width - 32, 14);
+
+      // 에어컨 실외기 (이미지 2 특징)
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + 16, fy + 8, 14, 10);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x + 22, fy + 10, 5, 5); // 실외기 팬
+
+      // 베란다 빨래/수건 액센트
+      if (f % 2 === 0) {
+        ctx.fillStyle = '#f43f5e'; // 분홍 수건
+        ctx.fillRect(x + 40, fy + 6, 12, 10);
+      } else {
+        ctx.fillStyle = '#22c55e'; // 화분
+        ctx.fillRect(x + 55, fy + 10, 8, 8);
+      }
+    }
+
+    // 1층 상가 및 자판기 / 라바콘 (이미지 2 하단 디테일)
+    const groundY = y + height - 45;
+    ctx.fillStyle = '#ec4899'; // 핑크 간판
+    ctx.fillRect(x + 8, groundY, width - 16, 10);
+
+    // 자동판매기
+    ctx.fillStyle = '#2563eb';
+    ctx.fillRect(x + 12, groundY + 12, 16, 25);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(x + 15, groundY + 16, 10, 8);
+
+    // 안전 라바콘 (주황색)
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(x + width - 22, groundY + 25, 8, 12);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(x + width - 21, groundY + 29, 6, 3);
   }
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 픽셀 도시 야경 배경 (이미지 1 적용)
+    // 1. 이미지 1 배경 렌더링
     drawPixelBackground();
 
-    // 2. 출발지 & 목적지 건물 패드
-    ctx.fillStyle = '#475569';
-    ctx.fillRect(startPad.x - 10, startPad.y, startPad.width + 20, 420 - startPad.y);
+    // 2. 출발지/목적지 아파트 패드
     ctx.fillStyle = '#334155';
+    ctx.fillRect(startPad.x - 10, startPad.y, startPad.width + 20, 420 - startPad.y);
     ctx.fillRect(landingPad.x - 10, landingPad.y, landingPad.width + 20, 420 - landingPad.y);
 
-    // 패드 상단
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
 
-    // 3. 중앙 장애물 아파트 (이미지 2 적용)
+    // 3. 이미지 2 아파트 장애물 렌더링
     drawPixelApartment(apartmentObstacle.x, apartmentObstacle.y, apartmentObstacle.width, apartmentObstacle.height);
 
     // 4. 🎯 Target 네온 표시기
@@ -393,11 +456,7 @@
     ctx.textAlign = 'center';
     ctx.fillText('▼ TARGET', padCenterX, indicatorY - 5);
 
-    // 5. 바닥 수면 / 리버 레이어
-    ctx.fillStyle = '#0284c7';
-    ctx.fillRect(0, 420, canvas.width, 30);
-
-    // 6. 드론 기체 렌더링
+    // 5. 드론 렌더링
     ctx.save();
     ctx.translate(drone.x, drone.y);
     ctx.rotate(drone.angle);
