@@ -21,7 +21,7 @@ body {
   user-select: none;
 }
 
-/* --- 2. Canvas 픽셀 처리 (렌더링 시 흐릿해짐 방지) --- */
+/* --- 2. Canvas 픽셀 보정 (도트 픽셀 깨짐/흐려짐 방지) --- */
 canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -39,7 +39,7 @@ canvas {
   background-color: #1e293b;
 }
 
-/* --- 3. CRT 스캔라인 (레트로 모니터 질감 효과) --- */
+/* --- 3. CRT 스캔라인 (레트로 브라운관 모니터 질감 효과) --- */
 .scanline-overlay {
   position: absolute;
   top: 0;
@@ -85,7 +85,7 @@ canvas {
 .hud-value.warn { color: var(--pixel-yellow); }
 .hud-value.danger { color: var(--pixel-red); }
 
-/* --- 5. 레트로 픽셀 버튼 (눌리는 입체감 연출) --- */
+/* --- 5. 레트로 픽셀 버튼 (입체감 및 클릭 애니메이션) --- */
 .pixel-btn {
   background-color: var(--pixel-green);
   color: #000;
