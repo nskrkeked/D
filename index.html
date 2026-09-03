@@ -16,28 +16,33 @@
     canvas { 
       image-rendering: pixelated; 
       image-rendering: crisp-edges;
-      background-color: #7dd3fc;
+      /* 💡 캔버스 자체 기본 배경색을 밝은 하늘색으로 강제 지정 */
+      background-color: #a7f3d0; 
     }
     .scanlines {
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
       background-size: 100% 4px;
     }
   </style>
 </head>
 <body class="bg-slate-950 text-gray-100 min-h-screen flex flex-col lg:flex-row overflow-hidden select-none">
 
+  <!-- 🎮 메인 게임 화면 -->
   <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 bg-slate-900 relative">
     
-    <div class="w-full max-w-5xl aspect-video bg-sky-300 border-4 border-slate-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.8)] relative flex items-center justify-center overflow-hidden">
+    <!-- 💡 캔버스 컨테이너 배경색도 밝게 보정 -->
+    <div class="w-full max-w-5xl aspect-video bg-emerald-200 border-4 border-slate-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.8)] relative flex items-center justify-center overflow-hidden">
       
       <canvas id="gameCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
 
       <div class="scanlines absolute inset-0 pointer-events-none z-10"></div>
 
+      <!-- 조작 가이드 -->
       <div id="startGuide" class="absolute bottom-3 left-3 bg-black/80 border-2 border-slate-600 px-3 py-1.5 text-base text-yellow-400 z-20 animate-pulse">
         ▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!
       </div>
 
+      <!-- 🏆 착륙 결과 팝업 UI -->
       <div id="resultModal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-30">
         <div class="bg-slate-800 border-4 border-slate-600 p-6 max-w-md w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center">
           <h2 id="modalTitle" class="text-4xl font-bold mb-2 tracking-wider">MISSION COMPLETE</h2>
@@ -67,11 +72,12 @@
     </div>
   </main>
 
+  <!-- 📊 오른쪽 조종 대시보드 -->
   <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-slate-700 p-6 flex flex-col gap-5 justify-between">
     <div class="flex flex-col gap-4">
       <header>
         <h1 class="text-4xl font-bold text-sky-400 tracking-wider">PIXEL DRONE</h1>
-        <p class="text-slate-400 text-lg">:: SLOW & SMOOTH MODE ::</p>
+        <p class="text-slate-400 text-lg">:: ROOFTOP DELIVERY LAB ::</p>
       </header>
 
       <section class="bg-black border-2 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
@@ -217,10 +223,8 @@
 
       if (isEngineStarted) {
         const isThrusting = keys.ArrowUp || keys.KeyW;
-        // 🐢 추력을 45 -> 28로 감소시켜 훨씬 부드럽게 상승
         const thrust = isThrusting ? 28 : 0;
 
-        // 🐢 최대 기울기 각도를 낮추어 확 기우는 것을 방지 (-0.5 -> -0.35)
         if (keys.ArrowLeft || keys.KeyA) drone.targetAngle = -0.35;
         else if (keys.ArrowRight || keys.KeyD) drone.targetAngle = 0.35;
         else drone.targetAngle = 0;
@@ -229,14 +233,13 @@
         drone.angle += drone.angularVelocity * dt;
         drone.angularVelocity *= 0.85;
 
-        const gravity = 6.0; // 중력 보정
+        const gravity = 6.0; 
         const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
         const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2.2)) / drone.mass;
 
         drone.vx += ax * dt;
         drone.vy += ay * dt;
 
-        // 🐢 공기 저항 추가 (속도를 자동으로 제어하여 천천히 움직이게 만듦)
         drone.vx *= 0.985;
         drone.vy *= 0.985;
 
@@ -329,41 +332,47 @@
     resultModal.classList.remove('hidden');
   }
 
+  // 🖼️ 밝은 도트 하늘 그라데이션 보정
   function drawPixelBackground() {
-    ctx.fillStyle = '#38bdf8';
+    // 하늘 기본색
+    ctx.fillStyle = '#a7f3d0';
     ctx.fillRect(0, 0, canvas.width, 350);
 
     const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
-    skyGrad.addColorStop(0, '#38bdf8');
-    skyGrad.addColorStop(0.5, '#7dd3fc');
-    skyGrad.addColorStop(1, '#bae6fd');
+    skyGrad.addColorStop(0, '#a7f3d0'); 
+    skyGrad.addColorStop(0.5, '#d1fae5');
+    skyGrad.addColorStop(1, '#ecfdf5');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, canvas.width, 240);
 
+    // 달
     ctx.fillStyle = '#fef08a';
     ctx.fillRect(650, 30, 20, 20);
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = '#a7f3d0';
     ctx.fillRect(645, 25, 18, 20);
 
+    // 구름
     ctx.fillStyle = '#ffffff';
     for(let i=0; i<8; i++) {
       ctx.fillRect(i * 110 - 20, 70, 90, 24);
       ctx.fillRect(i * 110, 60, 60, 15);
     }
 
-    ctx.fillStyle = '#7dd3fc';
+    // 원경 건물
+    ctx.fillStyle = '#d1fae5';
     for(let i=0; i<16; i++) {
       const h = 80 + (i % 5) * 18;
       ctx.fillRect(i * 52, 240 - h, 48, h + 180);
     }
 
-    ctx.fillStyle = '#0284c7';
+    ctx.fillStyle = '#10b981';
     for(let i=0; i<12; i++) {
       const h = 100 + (i % 4) * 25;
       ctx.fillRect(i * 70 - 10, 260 - h, 60, h + 160);
     }
 
-    ctx.fillStyle = '#0284c7';
+    // 하단 수면
+    ctx.fillStyle = '#10b981';
     ctx.fillRect(0, 350, canvas.width, 100);
   }
 
@@ -386,7 +395,7 @@
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(x + 10, fy, width - 20, 20);
 
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = '#a7f3d0';
       ctx.fillRect(x + 14, fy + 4, 12, 12);
 
       ctx.fillStyle = '#f8fafc';
@@ -402,7 +411,7 @@
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    ctx.fillStyle = '#0284c7';
+    ctx.fillStyle = '#10b981';
     ctx.fillRect(-24, -14, 8, 6);
     ctx.fillRect(16, -14, 8, 6);
 
@@ -413,9 +422,9 @@
     ctx.fillStyle = '#334155';
     ctx.fillRect(-20, -10, 40, 4);
 
-    ctx.fillStyle = '#0284c7';
+    ctx.fillStyle = '#10b981';
     ctx.fillRect(-12, -12, 24, 14);
-    ctx.fillStyle = '#7dd3fc';
+    ctx.fillStyle = '#d1fae5';
     ctx.fillRect(-8, -10, 16, 6);
 
     ctx.fillStyle = '#ef4444';
