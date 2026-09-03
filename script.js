@@ -105,3 +105,124 @@ function drawPixelBackground(ctx, canvasWidth, canvasHeight) {
     }
   }
 }
+// --- 2D Parallax Camera & Layer Engine ---
+
+class ParallaxCamera {
+  constructor(viewportWidth, viewportHeight) {
+    this.viewportWidth = viewportWidth;
+    this.viewportHeight = viewportHeight;
+    this.x = 0;
+    this.y = 0;
+  }
+
+  // 드론의 위치를 카메라 중앙에 부드럽게 추종 (Smooth Follow)
+  follow(targetX, targetY, lerpFactor = 0.08) {
+    const targetCamX = targetX - this.viewportWidth / 2;
+    const targetCamY = targetY - this.viewportHeight / 2;
+
+    this.x += (targetCamX - this.x) * lerpFactor;
+    this.y += (targetCamY - this.y) * lerpFactor;
+  }
+}
+
+class ParallaxBackground {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.camera = new ParallaxCamera(canvas.width, canvas.height);
+  }
+
+  render(droneX, droneY) {
+    const ctx = this.ctx;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+
+    // 카메라 위치 업데이트
+    this.camera.follow(droneX, droneY);
+
+    ctx.clearRect(0, 0, width, height);
+
+    // [Layer 0] 최원경: 하늘 & 밤하늘 정적 배경 (이동 없음: Factor = 0.0)
+    this.drawSky(ctx, width, height);
+
+    // [Layer 1] 원경: 구름 및 달 (아주 느리게 이동: Factor = 0.05)
+    this.drawFarClouds(ctx, this.camera.x * 0.05, this.camera.y * 0.02);
+
+    // [Layer 2] 중경: 먼 도시 빌딩 실루엣 (느리게 이동: Factor = 0.2)
+    this.drawDistantCity(ctx, this.camera.x * 0.2, this.camera.y * 0.1);
+
+    // [Layer 3] 근경: 가깝고 선명한 도심 아파트 단지 (보통 속도 이동: Factor = 0.5)
+    this.drawNearBuildings(ctx, this.camera.x * 0.5, this.camera.y * 0.3);
+
+    // [Layer 4] 게임 플레이 레이어: 실제 타겟 베란다 & 드론 (카메라 1:1 추종: Factor = 1.0)
+    ctx.save();
+    ctx.translate(-this.camera.x, -this.camera.y);
+    
+    this.drawGameObjects(ctx); // 목적지 아파트 및 드론 렌더링
+    
+    ctx.restore();
+  }
+
+  drawSky(ctx, width, height) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#0F172A'); // 슬레이트 블루
+    gradient.addColorStop(1, '#334155');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  drawFarClouds(ctx, offsetX, offsetY) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    // 루프 스크롤을 위해 모듈로(%) 연산 적용
+    const startX = -((offsetX) % 400);
+    for (let x = startX - 400; x < this.canvas.width + 400; x += 300) {
+      ctx.beginPath();
+      ctx.arc(x, 100 - offsetY, 40, 0, Math.PI * 2);
+      ctx.arc(x + 35, 90 - offsetY, 50, 0, Math.PI * 2);
+      ctx.arc(x + 70, 100 - offsetY, 40, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawDistantCity(ctx, offsetX, offsetY) {
+    ctx.fillStyle = '#1E293B'; // 어두운 건물 실루엣
+    const startX = -((offsetX) % 200);
+    const baseY = this.canvas.height - 50 - offsetY;
+
+    for (let x = startX - 200; x < this.canvas.width + 200; x += 60) {
+      const buildingHeight = 120 + Math.abs(Math.sin(x * 0.01)) * 100;
+      ctx.fillRect(x, baseY - buildingHeight, 50, buildingHeight);
+    }
+  }
+
+  drawNearBuildings(ctx, offsetX, offsetY) {
+    ctx.fillStyle = '#334155';
+    const startX = -((offsetX) % 300);
+    const baseY = this.canvas.height - offsetY;
+
+    for (let x = startX - 300; x < this.canvas.width + 300; x += 100) {
+      const height = 180 + Math.abs(Math.cos(x * 0.02)) * 120;
+      ctx.fillRect(x, baseY - height, 80, height);
+
+      // 창문 불빛 픽셀 연출
+      ctx.fillStyle = '#FDE047';
+      for (let wy = baseY - height + 20; wy < baseY - 20; wy += 30) {
+        if ((x + wy) % 3 === 0) {
+          ctx.fillRect(x + 15, wy, 15, 15);
+          ctx.fillRect(x + 50, wy, 15, 15);
+        }
+      }
+      ctx.fillStyle = '#334155';
+    }
+  }
+
+  drawGameObjects(ctx) {
+    // 실제 목적지 아파트 (세계 좌표계: X=1200, Y=200)
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(1100, 150, 300, 600);
+
+    // 베란다 착륙 패드
+    ctx.fillStyle = '#22C55E';
+    ctx.fillRect(1100, 350, 100, 15);
+  }
+}
