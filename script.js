@@ -73,3 +73,35 @@ class PixelDroneRenderer {
     ctx.fillRect(-2, 16, 4, 14);
   }
 }
+// Canvas에 레트로 픽셀 도심 배경 그리기
+function drawPixelBackground(ctx, canvasWidth, canvasHeight) {
+  // 1. 하늘 그라데이션 (노을/야경 분위기)
+  const skyGradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+  skyGradient.addColorStop(0, '#1E1B4B'); // 딥 퍼플
+  skyGradient.addColorStop(0.6, '#312E81'); 
+  skyGradient.addColorStop(1, '#4C1D95');
+  ctx.fillStyle = skyGradient;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  // 2. 원경 건물 실루엣 (멀리 있는 빌딩)
+  ctx.fillStyle = '#111827';
+  for (let x = 0; x < canvasWidth; x += 40) {
+    const height = 80 + (Math.sin(x * 0.05) * 40);
+    ctx.fillRect(x, canvasHeight - height - 30, 36, height);
+  }
+
+  // 3. 근경 아파트 건물 단지 (드론이 비행하는 주 무대)
+  ctx.fillStyle = '#1F2937';
+  ctx.fillRect(550, 150, 250, canvasHeight - 180); // 베란다가 있는 목적지 아파트
+
+  // 4. 아파트 창문 픽셀 불빛 연출
+  ctx.fillStyle = '#FDE047'; // 켜진 창문 불빛 (노란색)
+  for (let row = 170; row < canvasHeight - 50; row += 25) {
+    for (let col = 570; col < 780; col += 20) {
+      // 랜덤하게 창문 불빛 배치
+      if ((row + col) % 3 === 0) {
+        ctx.fillRect(col, row, 10, 12);
+      }
+    }
+  }
+}
