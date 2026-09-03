@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Drone Delivery - Multi-View & Audio Prototype</title>
+  <title>Drone Delivery - Landing System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <style>
@@ -13,183 +13,273 @@
 </head>
 <body class="bg-gray-900 text-gray-100 h-screen flex flex-col lg:flex-row overflow-hidden select-none">
 
-  <!-- 1. 게임 Canvas 뷰 -->
+  <!-- 1. Canvas 뷰 영역 -->
   <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 relative bg-gray-900 h-[50vh] lg:h-auto">
     <div class="w-full max-w-4xl aspect-video bg-sky-300 border-4 border-gray-600 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)] relative flex items-center justify-center overflow-hidden">
+      
       <canvas id="gameCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
 
-      <!-- 오디오 켜기 안내 Overlay -->
-      <div id="audioStartOverlay" class="absolute inset-0 bg-black/80 flex items-center justify-center z-20 cursor-pointer">
-        <p class="text-2xl text-green-400 animate-pulse">[ 화면을 클릭하여 사운드 & 시뮬레이션 시작 ]</p>
-      </div>
-
+      <!-- 조작 가이드 -->
       <div class="absolute bottom-3 left-3 bg-black/70 border border-gray-600 px-3 py-1.5 text-base text-gray-300 pointer-events-none">
         [↑/W] 추력 상승 | [←/A][→/D] 기울기 조절
       </div>
-    </div>
-  </main>
 
-  <!-- 2. 대시보드 & 컨트롤 센터 -->
-  <aside class="w-full lg:w-96 bg-gray-800 border-t-4 lg:border-t-0 lg:border-l-4 border-gray-600 p-6 flex flex-col gap-5 overflow-y-auto h-[50vh] lg:h-auto">
-    
-    <header>
-      <h1 class="text-4xl font-bold text-green-400 tracking-wider">DRONE LAB</h1>
-      <p class="text-gray-400 text-lg">:: GRAPHICS & AUDIO LAB ::</p>
-    </header>
+      <!-- 🎮 미션 결과 픽셀 팝업 UI -->
+      <div id="resultModal" class="hidden absolute inset-0 bg-black/75 flex items-center justify-center z-30">
+        <div class="bg-gray-800 border-4 border-gray-500 p-6 max-w-md w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center relative">
+          <h2 id="modalTitle" class="text-4xl font-bold mb-2 tracking-wider">MISSION COMPLETE</h2>
+          <p id="modalSub" class="text-gray-300 text-lg mb-4">안전하게 배달을 완료했습니다!</p>
+          
+          <!-- 세부 비행 로그 -->
+          <div class="bg-black border-2 border-gray-600 p-3 mb-5 text-left text-lg">
+            <div class="flex justify-between">
+              <span class="text-gray-400">TOUCHDOWN VY:</span>
+              <span id="logVy" class="text-green-400">0.0 m/s</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">TOUCHDOWN VX:</span>
+              <span id="logVx" class="text-green-400">0.0 m/s</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">LANDING ANGLE:</span>
+              <span id="logAngle" class="text-green-400">0.0°</span>
+            </div>
+          </div>
 
-    <!-- 그래픽 모드 선택 -->
-    <section class="bg-gray-700 p-3 border-2 border-gray-600">
-      <label class="text-gray-300 text-sm block mb-2">GRAPHICS MODE (뷰 선택)</label>
-      <div class="grid grid-cols-2 gap-2">
-        <button id="view2dBtn" class="bg-blue-900 border-2 border-blue-400 p-2 text-lg">2D Flat View</button>
-        <button id="viewIsoBtn" class="bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600">Isometric 2.5D</button>
-      </div>
-    </section>
-
-    <!-- PID 및 사운드 스위치 -->
-    <section class="flex flex-col gap-3">
-      <div id="pidToggleBtn" class="flex items-center justify-between p-3 border-2 border-gray-600 bg-gray-700 cursor-pointer">
-        <span class="text-xl">AUTO-LEVEL (PID)</span>
-        <div id="pidSwitchBg" class="w-12 h-6 bg-green-500 border-2 border-black relative">
-          <div id="pidSwitchHandle" class="absolute right-0 top-0 w-5 h-full bg-gray-200 border-l-2 border-black"></div>
+          <button id="retryBtn" class="bg-green-600 hover:bg-green-500 text-black border-2 border-black font-bold px-6 py-2 text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
+            RETRY MISSION
+          </button>
         </div>
       </div>
 
-      <div id="audioToggleBtn" class="flex items-center justify-between p-3 border-2 border-gray-600 bg-gray-700 cursor-pointer">
-        <span class="text-xl">SOUND MUTE</span>
-        <span id="audioStatusText" class="text-green-400 text-xl">ON</span>
-      </div>
+    </div>
+  </main>
+
+  <!-- 2. 컨트롤 패널 -->
+  <aside class="w-full lg:w-96 bg-gray-800 border-t-4 lg:border-t-0 lg:border-l-4 border-gray-600 p-6 flex flex-col gap-5 overflow-y-auto h-[50vh] lg:h-auto">
+    <header>
+      <h1 class="text-4xl font-bold text-green-400 tracking-wider">DRONE LAB</h1>
+      <p class="text-gray-400 text-lg">:: LANDING SAFETY TEST ::</p>
+    </header>
+
+    <!-- 안전 한계 표준 가이드 -->
+    <section class="bg-black border-2 border-gray-600 p-3 text-sm text-gray-300">
+      <p class="text-yellow-400 font-bold mb-1">⚠️ SAFETY LANDING LIMITS</p>
+      <ul class="list-disc list-inside space-y-0.5">
+        <li>수직 속도 (Vy): 2.0 m/s 이하</li>
+        <li>수평 속도 (Vx): 1.5 m/s 이하</li>
+        <li>기체 기울기: ±10° 이내</li>
+      </ul>
     </section>
 
-    <!-- 텔레메트리 -->
+    <!-- 대시보드 데이터 -->
     <section class="bg-black border-2 border-gray-600 p-4">
-      <div class="grid grid-cols-2 gap-2 text-xl">
-        <div><span class="text-gray-400 text-xs block">PITCH</span><span id="uiPitch" class="text-yellow-400">0.0°</span></div>
-        <div><span class="text-gray-400 text-xs block">ALTITUDE</span><span id="uiAlt" class="text-blue-400">0.0m</span></div>
+      <div class="grid grid-cols-2 gap-3 text-xl">
+        <div><span class="text-gray-400 text-xs block">PITCH ANGLE</span><span id="uiPitch" class="text-yellow-400">0.0°</span></div>
+        <div><span class="text-gray-400 text-xs block">VERT SPEED</span><span id="uiVy" class="text-blue-400">0.0 m/s</span></div>
       </div>
     </section>
-
   </aside>
 
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  let currentViewMode = '2D'; // '2D' or 'ISO'
-  let isAudioMuted = false;
-  let audioCtx = null;
-  let motorOsc = null, motorGain = null;
-  let windNoise = null, windGain = null;
+  // UI 요소
+  const resultModal = document.getElementById('resultModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSub = document.getElementById('modalSub');
+  const logVy = document.getElementById('logVy');
+  const logVx = document.getElementById('logVx');
+  const logAngle = document.getElementById('logAngle');
+  const retryBtn = document.getElementById('retryBtn');
 
-  // Web Audio API 초기화
-  function initAudio() {
-    if (audioCtx) return;
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const uiPitch = document.getElementById('uiPitch');
+  const uiVy = document.getElementById('uiVy');
 
-    // 1. 모터 사운드 (Sawtooth Synth)
-    motorOsc = audioCtx.createOscillator();
-    motorGain = audioCtx.createGain();
-    motorOsc.type = 'sawtooth';
-    motorOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
-    motorGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    motorOsc.connect(motorGain);
-    motorGain.connect(audioCtx.destination);
-    motorOsc.start();
+  // 드론 및 게임 상태
+  let gameState = 'PLAYING'; // 'PLAYING', 'SUCCESS', 'CRASH'
+  
+  const drone = {
+    x: 100, y: 150,
+    vx: 0, vy: 0,
+    angle: 0, angularVelocity: 0,
+    mass: 1.5,
+    width: 50, height: 20
+  };
 
-    // 2. 바람 사운드 (White Noise Buffer)
-    const bufferSize = audioCtx.sampleRate * 2;
-    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+  // 아파트 베란다 착륙대 영역 정의
+  const landingPad = {
+    x: 620, y: 280,
+    width: 80, height: 10
+  };
 
-    windNoise = audioCtx.createBufferSource();
-    windNoise.buffer = noiseBuffer;
-    windNoise.loop = true;
-    windGain = audioCtx.createGain();
-    windGain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-    windNoise.connect(windGain);
-    windGain.connect(audioCtx.destination);
-    windNoise.start();
-  }
+  // 안전 착륙 허용 한계값 (공학적 기준)
+  const SAFETY_LIMITS = {
+    maxVy: 2.0,    // 수직 하강 속도 제한 (m/s)
+    maxVx: 1.5,    // 수평 이동 속도 제한 (m/s)
+    maxAngle: 0.175 // 기체 기울기 제한 (약 10도, 라디안)
+  };
 
-  // 화면 클릭 시 오디오 엔진 시작
-  document.getElementById('audioStartOverlay').addEventListener('click', function() {
-    initAudio();
-    this.style.display = 'none';
-  });
-
-  // 드론 물리 객체
-  const drone = { x: 400, y: 380, vx: 0, vy: 0, angle: 0, angularVelocity: 0, mass: 2.0 };
   const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
-  let isPidOn = true;
-
   window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
   window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
 
-  // 뷰 모드 변경
-  document.getElementById('view2dBtn').addEventListener('click', (e) => {
-    currentViewMode = '2D';
-    e.target.className = "bg-blue-900 border-2 border-blue-400 p-2 text-lg";
-    document.getElementById('viewIsoBtn').className = "bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600";
-  });
-  document.getElementById('viewIsoBtn').addEventListener('click', (e) => {
-    currentViewMode = 'ISO';
-    e.target.className = "bg-blue-900 border-2 border-blue-400 p-2 text-lg";
-    document.getElementById('view2dBtn').className = "bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600";
-  });
+  retryBtn.addEventListener('click', resetGame);
 
-  // 메인 루프
+  function resetGame() {
+    drone.x = 100; drone.y = 150;
+    drone.vx = 0; drone.vy = 0;
+    drone.angle = 0; drone.angularVelocity = 0;
+    gameState = 'PLAYING';
+    resultModal.classList.add('hidden');
+  }
+
+  // --- 메인 업데이트 루프 ---
   function update() {
-    const isThrusting = keys.ArrowUp || keys.KeyW;
-    const thrust = isThrusting ? 50 : 0;
+    if (gameState === 'PLAYING') {
+      const dt = 0.016;
+      const isThrusting = keys.ArrowUp || keys.KeyW;
+      const thrust = isThrusting ? 45 : 0;
 
-    // 사운드 RPM 연동
-    if (audioCtx && !isAudioMuted) {
-      const targetFreq = isThrusting ? 140 : 60;
-      motorOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.1);
+      // 조작 및 복원력
+      if (keys.ArrowLeft || keys.KeyA) drone.targetAngle = -0.5;
+      else if (keys.ArrowRight || keys.KeyD) drone.targetAngle = 0.5;
+      else drone.targetAngle = 0;
+
+      // 간단한 자이로 보정
+      drone.angularVelocity += (drone.targetAngle - drone.angle) * 10 * dt;
+      drone.angle += drone.angularVelocity * dt;
+      drone.angularVelocity *= 0.9;
+
+      // 물리 공식 (F=ma)
+      const gravity = 9.8;
+      const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
+      const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2.2)) / drone.mass;
+
+      drone.vx += ax * dt;
+      drone.vy += ay * dt;
+      drone.x += drone.vx;
+      drone.y += drone.vy;
+
+      // UI 디스플레이 갱신
+      uiPitch.textContent = `${(drone.angle * (180 / Math.PI)).toFixed(1)}°`;
+      uiVy.textContent = `${(-drone.vy * 0.5).toFixed(1)} m/s`;
+
+      // 착륙 및 충돌 감지
+      checkCollisions();
     }
-
-    // 물리 단순 업데이트
-    const gravity = 9.8;
-    const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
-    const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2)) / drone.mass;
-
-    drone.vx += ax * 0.016;
-    drone.vy += ay * 0.016;
-    drone.x += drone.vx;
-    drone.y += drone.vy;
-
-    if (drone.y > 380) { drone.y = 380; drone.vy = 0; }
 
     draw();
     requestAnimationFrame(update);
   }
 
+  // --- 착륙 판정 핵심 엔진 ---
+  function checkCollisions() {
+    const droneBottom = drone.y + 15; // 드론 하단 레벨
+    const droneLeft = drone.x - 20;
+    const droneRight = drone.x + 20;
+
+    // 1. 아파트 베란다 착륙 패드 충돌 판정
+    const isOverPad = droneRight > landingPad.x && droneLeft < (landingPad.x + landingPad.width);
+    const isTouchingPad = droneBottom >= landingPad.y && droneBottom <= landingPad.y + 12 && drone.vy >= 0;
+
+    if (isOverPad && isTouchingPad) {
+      evaluateLanding();
+      return;
+    }
+
+    // 2. 아파트 벽면 충돌 판정 (실패)
+    if (droneRight > 600 && drone.y > 200 && !isOverPad) {
+      triggerMissionResult(false, "아파트 벽면에 충돌했습니다!");
+      return;
+    }
+
+    // 3. 지면(땅) 추락 판정 (실패)
+    if (droneBottom >= 420) {
+      triggerMissionResult(false, "목적지를 벗어나 바닥에 추락했습니다!");
+    }
+  }
+
+  // 착륙 수치 검증
+  function evaluateLanding() {
+    const absVy = Math.abs(drone.vy * 0.5); // 표시 스케일 맞춤
+    const absVx = Math.abs(drone.vx * 0.5);
+    const absAngle = Math.abs(drone.angle);
+
+    const isVySafe = absVy <= SAFETY_LIMITS.maxVy;
+    const isVxSafe = absVx <= SAFETY_LIMITS.maxVx;
+    const isAngleSafe = absAngle <= SAFETY_LIMITS.maxAngle;
+
+    if (isVySafe && isVxSafe && isAngleSafe) {
+      triggerMissionResult(true, "완벽합니다! 안전하게 택배를 배달했습니다.");
+    } else {
+      let cause = [];
+      if (!isVySafe) cause.push("하강 속도 초과");
+      if (!isVxSafe) cause.push("수평 이동 속도 초과");
+      if (!isAngleSafe) cause.push("기체 기울기 과다");
+      triggerMissionResult(false, `거친 착륙으로 화물이 손상되었습니다! (${cause.join(', ')})`);
+    }
+  }
+
+  // 결과 팝업 출력
+  function triggerMissionResult(isSuccess, message) {
+    gameState = isSuccess ? 'SUCCESS' : 'CRASH';
+
+    const degAngle = Math.abs(drone.angle * (180 / Math.PI)).toFixed(1);
+    const vyVal = Math.abs(drone.vy * 0.5).toFixed(1);
+    const vxVal = Math.abs(drone.vx * 0.5).toFixed(1);
+
+    logVy.textContent = `${vyVal} m/s ${vyVal <= SAFETY_LIMITS.maxVy ? '✓' : '✗'}`;
+    logVy.className = vyVal <= SAFETY_LIMITS.maxVy ? 'text-green-400' : 'text-red-400';
+
+    logVx.textContent = `${vxVal} m/s ${vxVal <= SAFETY_LIMITS.maxVx ? '✓' : '✗'}`;
+    logVx.className = vxVal <= SAFETY_LIMITS.maxVx ? 'text-green-400' : 'text-red-400';
+
+    logAngle.textContent = `${degAngle}° ${degAngle <= 10 ? '✓' : '✗'}`;
+    logAngle.className = degAngle <= 10 ? 'text-green-400' : 'text-red-400';
+
+    if (isSuccess) {
+      modalTitle.textContent = "DELIVERY SUCCESS";
+      modalTitle.className = "text-4xl font-bold mb-2 text-green-400 tracking-wider";
+    } else {
+      modalTitle.textContent = "MISSION FAILED";
+      modalTitle.className = "text-4xl font-bold mb-2 text-red-500 tracking-wider";
+    }
+
+    modalSub.textContent = message;
+    resultModal.classList.remove('hidden');
+  }
+
+  // --- 캔버스 렌더링 ---
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (currentViewMode === '2D') {
-      // 2D Side View
-      ctx.fillStyle = "#1f2937";
-      ctx.fillRect(drone.x - 25, drone.y - 5, 50, 10);
-      ctx.fillStyle = "#b45309";
-      ctx.fillRect(drone.x - 10, drone.y + 5, 20, 15);
-    } else {
-      // Isometric 2.5D View (투영 공식 적용)
-      const isoX = (drone.x - drone.y) * 0.7 + 400;
-      const isoY = (drone.x + drone.y) * 0.3 + 50;
+    // 배경 아파트 및 베란다
+    ctx.fillStyle = "#374151";
+    ctx.fillRect(600, 180, 200, 270);
 
-      ctx.fillStyle = "#374151";
-      ctx.beginPath();
-      ctx.moveTo(isoX, isoY - 10);
-      ctx.lineTo(isoX + 20, isoY);
-      ctx.lineTo(isoX, isoY + 10);
-      ctx.lineTo(isoX - 20, isoY);
-      ctx.fill();
+    // 착륙 패드 (베란다)
+    ctx.fillStyle = "#10B981"; // 초록색 안전 착륙장
+    ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
+    ctx.fillStyle = "#F59E0B"; // 착륙장 테두리
+    ctx.fillRect(landingPad.x, landingPad.y + landingPad.height, landingPad.width, 4);
 
-      ctx.fillStyle = "#d97706";
-      ctx.fillRect(isoX - 8, isoY + 2, 16, 12);
-    }
+    // 바닥
+    ctx.fillStyle = "#1f2937";
+    ctx.fillRect(0, 420, canvas.width, 30);
+
+    // 드론 그려주기
+    ctx.save();
+    ctx.translate(drone.x, drone.y);
+    ctx.rotate(drone.angle);
+
+    ctx.fillStyle = gameState === 'CRASH' ? "#EF4444" : "#F3F4F6";
+    ctx.fillRect(-20, -4, 40, 8);
+    ctx.fillStyle = "#B45309"; // 화물 박스
+    ctx.fillRect(-8, 4, 16, 12);
+
+    ctx.restore();
   }
 
   update();
