@@ -67,4 +67,433 @@
     </div>
   </main>
 
-  <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-
+  <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-slate-700 p-6 flex flex-col gap-5 justify-between">
+    <div class="flex flex-col gap-4">
+      <header>
+        <h1 class="text-4xl font-bold text-sky-400 tracking-wider">PIXEL DRONE</h1>
+        <p class="text-slate-400 text-lg">:: SLOW & SMOOTH MODE ::</p>
+      </header>
+
+      <section class="bg-black border-2 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
+        <h3 class="text-yellow-400 font-bold mb-2 text-lg">📟 TELEMETRY DATA</h3>
+        <div class="grid grid-cols-2 gap-3 text-xl">
+          <div>
+            <span class="text-slate-400 text-xs block">STAGE LEVEL</span>
+            <span id="uiLevel" class="text-green-400">LV. 1</span>
+          </div>
+          <div>
+            <span class="text-slate-400 text-xs block">PITCH ANGLE</span>
+            <span id="uiPitch" class="text-yellow-400">0.0°</span>
+          </div>
+          <div class="col-span-2">
+            <span class="text-slate-400 text-xs block">VERT SPEED</span>
+            <span id="uiVy" class="text-blue-400">0.0 m/s</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-slate-800 border-2 border-slate-700 p-3 text-sm text-slate-300">
+        <p class="text-sky-400 font-bold mb-1">🎮 MISSION OBJECTIVE</p>
+        <p id="directionInfo" class="text-yellow-300 font-bold mb-2">현재 방향: [왼쪽 ➔ 오른쪽]</p>
+        <p class="text-slate-400">속도가 감속되어 더욱 쉽게 제어할 수 있습니다.</p>
+      </section>
+    </div>
+
+    <footer class="text-xs text-slate-500 text-center">
+      HTML5 Canvas Custom Pixel Engine
+    </footer>
+  </aside>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const resultModal = document.getElementById('resultModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSub = document.getElementById('modalSub');
+  const logVy = document.getElementById('logVy');
+  const logVx = document.getElementById('logVx');
+  const logAngle = document.getElementById('logAngle');
+  const retryBtn = document.getElementById('retryBtn');
+  const startGuide = document.getElementById('startGuide');
+  const directionInfo = document.getElementById('directionInfo');
+
+  const uiLevel = document.getElementById('uiLevel');
+  const uiPitch = document.getElementById('uiPitch');
+  const uiVy = document.getElementById('uiVy');
+
+  let gameState = 'PLAYING';
+  let isEngineStarted = false;
+  let pulseTimer = 0;
+  let isReverseDirection = false;
+  let currentLevel = 1;
+  
+  const drone = {
+    x: 80, y: 150,
+    vx: 0, vy: 0,
+    angle: 0, angularVelocity: 0,
+    targetAngle: 0,
+    mass: 1.5
+  };
+
+  const startPad = { x: 40, y: 320, width: 80, height: 10 };
+  const landingPad = { x: 670, y: 280, width: 90, height: 12 };
+
+  const GROUND_Y = 420;
+  const apartments = [
+    { x: 260, width: 85, height: 120 },
+    { x: 440, width: 95, height: 150 }
+  ];
+
+  const SAFETY_LIMITS = { maxVy: 2.0, maxVx: 1.5, maxAngle: 0.175 };
+  const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
+
+  window.addEventListener('keydown', e => { 
+    if (keys.hasOwnProperty(e.code)) {
+      keys[e.code] = true;
+      if (!isEngineStarted && gameState === 'PLAYING') {
+        isEngineStarted = true;
+        startGuide.textContent = '🎮 [↑/W] 추력 | [←/A][→/D] 기울기';
+        startGuide.classList.remove('animate-pulse', 'text-yellow-400');
+        startGuide.classList.add('text-green-400');
+      }
+    }
+  });
+
+  window.addEventListener('keyup', e => { 
+    if (keys.hasOwnProperty(e.code)) keys[e.code] = false; 
+  });
+
+  retryBtn.addEventListener('click', onNextOrRetry);
+
+  function onNextOrRetry() {
+    if (gameState === 'SUCCESS') {
+      currentLevel++;
+      isReverseDirection = !isReverseDirection;
+    }
+    resetGame();
+  }
+
+  function resetGame() {
+    uiLevel.textContent = `LV. ${currentLevel}`;
+
+    const heightIncrease = Math.min((currentLevel - 1) * 20, 120);
+
+    apartments[0].x = 240 + Math.floor(Math.random() * 20);
+    apartments[0].height = 110 + heightIncrease + Math.floor(Math.random() * 20);
+
+    apartments[1].x = 430 + Math.floor(Math.random() * 30);
+    apartments[1].height = 130 + heightIncrease + Math.floor(Math.random() * 20);
+
+    if (!isReverseDirection) {
+      drone.x = 80; drone.y = 280;
+      startPad.x = 30; startPad.y = 320;
+      landingPad.x = 660; landingPad.y = 200 + Math.floor(Math.random() * 80);
+      directionInfo.textContent = `현재 방향: [왼쪽 ➔ 오른쪽] (LV.${currentLevel})`;
+    } else {
+      drone.x = 710; drone.y = 280;
+      startPad.x = 660; startPad.y = 320;
+      landingPad.x = 30; landingPad.y = 200 + Math.floor(Math.random() * 80);
+      directionInfo.textContent = `현재 방향: [오른쪽 ➔ 왼쪽] (LV.${currentLevel})`;
+    }
+
+    drone.vx = 0; drone.vy = 0;
+    drone.angle = 0; drone.angularVelocity = 0;
+    gameState = 'PLAYING';
+    isEngineStarted = false;
+
+    startGuide.textContent = '▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!';
+    startGuide.classList.add('animate-pulse', 'text-yellow-400');
+    startGuide.classList.remove('text-green-400');
+
+    resultModal.classList.add('hidden');
+  }
+
+  function update() {
+    pulseTimer += 0.05;
+
+    if (gameState === 'PLAYING') {
+      const dt = 0.016;
+
+      if (isEngineStarted) {
+        const isThrusting = keys.ArrowUp || keys.KeyW;
+        // 🐢 추력을 45 -> 28로 감소시켜 훨씬 부드럽게 상승
+        const thrust = isThrusting ? 28 : 0;
+
+        // 🐢 최대 기울기 각도를 낮추어 확 기우는 것을 방지 (-0.5 -> -0.35)
+        if (keys.ArrowLeft || keys.KeyA) drone.targetAngle = -0.35;
+        else if (keys.ArrowRight || keys.KeyD) drone.targetAngle = 0.35;
+        else drone.targetAngle = 0;
+
+        drone.angularVelocity += (drone.targetAngle - drone.angle) * 6 * dt;
+        drone.angle += drone.angularVelocity * dt;
+        drone.angularVelocity *= 0.85;
+
+        const gravity = 6.0; // 중력 보정
+        const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
+        const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2.2)) / drone.mass;
+
+        drone.vx += ax * dt;
+        drone.vy += ay * dt;
+
+        // 🐢 공기 저항 추가 (속도를 자동으로 제어하여 천천히 움직이게 만듦)
+        drone.vx *= 0.985;
+        drone.vy *= 0.985;
+
+        drone.x += drone.vx;
+        drone.y += drone.vy;
+
+        checkCollisions();
+      }
+
+      uiPitch.textContent = `${(drone.angle * (180 / Math.PI)).toFixed(1)}°`;
+      uiVy.textContent = `${(-drone.vy * 0.5).toFixed(1)} m/s`;
+    }
+
+    draw();
+    requestAnimationFrame(update);
+  }
+
+  function checkCollisions() {
+    const droneBottom = drone.y + 16;
+    const droneLeft = drone.x - 22;
+    const droneRight = drone.x + 22;
+
+    const isOverPad = droneRight > landingPad.x && droneLeft < (landingPad.x + landingPad.width);
+    const isTouchingPad = droneBottom >= landingPad.y && droneBottom <= landingPad.y + 12 && drone.vy >= 0;
+
+    if (isOverPad && isTouchingPad) {
+      evaluateLanding();
+      return;
+    }
+
+    for (let apt of apartments) {
+      const aptTopY = GROUND_Y - apt.height;
+      const hitX = droneRight > apt.x && droneLeft < (apt.x + apt.width);
+      const hitY = droneBottom > aptTopY;
+      if (hitX && hitY) {
+        triggerMissionResult(false, "아파트 건물에 충돌했습니다!");
+        return;
+      }
+    }
+
+    if (droneBottom >= GROUND_Y || droneLeft < 0 || droneRight > 800) {
+      triggerMissionResult(false, "비행 구역을 벗어나 추락했습니다!");
+    }
+  }
+
+  function evaluateLanding() {
+    const absVy = Math.abs(drone.vy * 0.5);
+    const absVx = Math.abs(drone.vx * 0.5);
+    const absAngle = Math.abs(drone.angle);
+
+    const isVySafe = absVy <= SAFETY_LIMITS.maxVy;
+    const isVxSafe = absVx <= SAFETY_LIMITS.maxVx;
+    const isAngleSafe = absAngle <= SAFETY_LIMITS.maxAngle;
+
+    if (isVySafe && isVxSafe && isAngleSafe) {
+      const msg = `LV.${currentLevel} 배달 성공! 무사히 옥상에 착륙했습니다.`;
+      triggerMissionResult(true, msg);
+    } else {
+      triggerMissionResult(false, "거친 착륙으로 택배 화물이 손상되었습니다!");
+    }
+  }
+
+  function triggerMissionResult(isSuccess, message) {
+    gameState = isSuccess ? 'SUCCESS' : 'CRASH';
+
+    const degAngle = Math.abs(drone.angle * (180 / Math.PI)).toFixed(1);
+    const vyVal = Math.abs(drone.vy * 0.5).toFixed(1);
+    const vxVal = Math.abs(drone.vx * 0.5).toFixed(1);
+
+    logVy.textContent = `${vyVal} m/s ${vyVal <= SAFETY_LIMITS.maxVy ? '✓' : '✗'}`;
+    logVy.className = vyVal <= SAFETY_LIMITS.maxVy ? 'text-green-400' : 'text-red-400';
+
+    logVx.textContent = `${vxVal} m/s ${vxVal <= SAFETY_LIMITS.maxVx ? '✓' : '✗'}`;
+    logVx.className = vxVal <= SAFETY_LIMITS.maxVx ? 'text-green-400' : 'text-red-400';
+
+    logAngle.textContent = `${degAngle}° ${degAngle <= 10 ? '✓' : '✗'}`;
+    logAngle.className = degAngle <= 10 ? 'text-green-400' : 'text-red-400';
+
+    if (isSuccess) {
+      modalTitle.textContent = "DELIVERY SUCCESS";
+      modalTitle.className = "text-4xl font-bold mb-2 text-green-400 tracking-wider";
+      retryBtn.textContent = `GO TO LEVEL ${currentLevel + 1} ➔`;
+    } else {
+      modalTitle.textContent = "MISSION FAILED";
+      modalTitle.className = "text-4xl font-bold mb-2 text-red-500 tracking-wider";
+      retryBtn.textContent = "RETRY LEVEL";
+    }
+
+    modalSub.textContent = message;
+    resultModal.classList.remove('hidden');
+  }
+
+  function drawPixelBackground() {
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(0, 0, canvas.width, 350);
+
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
+    skyGrad.addColorStop(0, '#38bdf8');
+    skyGrad.addColorStop(0.5, '#7dd3fc');
+    skyGrad.addColorStop(1, '#bae6fd');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, canvas.width, 240);
+
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(650, 30, 20, 20);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(645, 25, 18, 20);
+
+    ctx.fillStyle = '#ffffff';
+    for(let i=0; i<8; i++) {
+      ctx.fillRect(i * 110 - 20, 70, 90, 24);
+      ctx.fillRect(i * 110, 60, 60, 15);
+    }
+
+    ctx.fillStyle = '#7dd3fc';
+    for(let i=0; i<16; i++) {
+      const h = 80 + (i % 5) * 18;
+      ctx.fillRect(i * 52, 240 - h, 48, h + 180);
+    }
+
+    ctx.fillStyle = '#0284c7';
+    for(let i=0; i<12; i++) {
+      const h = 100 + (i % 4) * 25;
+      ctx.fillRect(i * 70 - 10, 260 - h, 60, h + 160);
+    }
+
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(0, 350, canvas.width, 100);
+  }
+
+  function drawPixelApartment(x, width, height) {
+    const topY = GROUND_Y - height;
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(x, topY, width, height);
+
+    ctx.fillStyle = '#cbd5e1';
+    for(let ty = topY; ty < GROUND_Y; ty += 10) {
+      ctx.fillRect(x, ty, width, 1);
+    }
+
+    const floorH = 36;
+    const floors = Math.floor(height / floorH);
+
+    for(let f = 0; f < floors; f++) {
+      const fy = topY + 10 + f * floorH;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + 10, fy, width - 20, 20);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(x + 14, fy + 4, 12, 12);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + width - 28, fy + 8, 12, 8);
+    }
+
+    ctx.fillStyle = '#ec4899';
+    ctx.fillRect(x + 6, GROUND_Y - 25, width - 12, 8);
+  }
+
+  function drawPixelDrone(x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(-24, -14, 8, 6);
+    ctx.fillRect(16, -14, 8, 6);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-28, -16, 16, 2);
+    ctx.fillRect(12, -16, 16, 2);
+
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(-20, -10, 40, 4);
+
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(-12, -12, 24, 14);
+    ctx.fillStyle = '#7dd3fc';
+    ctx.fillRect(-8, -10, 16, 6);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-6, -15, 3, 3);
+    ctx.fillRect(3, -15, 3, 3);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-10, 2, 4, 10);
+    ctx.fillRect(6, 2, 4, 10);
+
+    if (gameState !== 'CRASH') {
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(-8, 10, 16, 12);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(-2, 10, 4, 12);
+    }
+
+    ctx.restore();
+  }
+
+  function drawPixelRooftopPad(pad, isTarget) {
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(pad.x - 8, pad.y, pad.width + 16, GROUND_Y - pad.y);
+
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(pad.x, pad.y, pad.width, pad.height);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(pad.x - 8, pad.y - 6, 6, 8);
+    ctx.fillRect(pad.x + pad.width + 2, pad.y - 6, 6, 8);
+
+    if (isTarget) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(pad.x + 4, pad.y + 2, pad.width - 8, pad.height - 4);
+      
+      ctx.fillStyle = '#1e293b';
+      const cx = pad.x + pad.width / 2;
+      const cy = pad.y + pad.height / 2;
+      ctx.fillRect(cx - 8, cy - 3, 3, 7);
+      ctx.fillRect(cx + 5, cy - 3, 3, 7);
+      ctx.fillRect(cx - 8, cy, 16, 2);
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawPixelBackground();
+
+    for (let apt of apartments) {
+      drawPixelApartment(apt.x, apt.width, apt.height);
+    }
+
+    drawPixelRooftopPad(startPad, false);
+    drawPixelRooftopPad(landingPad, true);
+
+    const floatOffset = Math.sin(pulseTimer * 3) * 5;
+    const padCenterX = landingPad.x + landingPad.width / 2;
+    const indicatorY = landingPad.y - 32 + floatOffset;
+
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(padCenterX, indicatorY + 12);
+    ctx.lineTo(padCenterX - 10, indicatorY);
+    ctx.lineTo(padCenterX + 10, indicatorY);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 16px VT323, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼ TARGET', padCenterX, indicatorY - 5);
+
+    drawPixelDrone(drone.x, drone.y, drone.angle);
+  }
+
+  resetGame();
+  update();
+</script>
+</body>
+</html>
