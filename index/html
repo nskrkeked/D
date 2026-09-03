@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drone Delivery - Multi-View & Audio Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'VT323', monospace; }
+    canvas { image-rendering: pixelated; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col lg:flex-row overflow-hidden select-none">
+
+  <!-- 1. 게임 Canvas 뷰 -->
+  <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-8 relative bg-gray-900 h-[50vh] lg:h-auto">
+    <div class="w-full max-w-4xl aspect-video bg-sky-300 border-4 border-gray-600 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.5)] relative flex items-center justify-center overflow-hidden">
+      <canvas id="gameCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
+
+      <!-- 오디오 켜기 안내 Overlay -->
+      <div id="audioStartOverlay" class="absolute inset-0 bg-black/80 flex items-center justify-center z-20 cursor-pointer">
+        <p class="text-2xl text-green-400 animate-pulse">[ 화면을 클릭하여 사운드 & 시뮬레이션 시작 ]</p>
+      </div>
+
+      <div class="absolute bottom-3 left-3 bg-black/70 border border-gray-600 px-3 py-1.5 text-base text-gray-300 pointer-events-none">
+        [↑/W] 추력 상승 | [←/A][→/D] 기울기 조절
+      </div>
+    </div>
+  </main>
+
+  <!-- 2. 대시보드 & 컨트롤 센터 -->
+  <aside class="w-full lg:w-96 bg-gray-800 border-t-4 lg:border-t-0 lg:border-l-4 border-gray-600 p-6 flex flex-col gap-5 overflow-y-auto h-[50vh] lg:h-auto">
+    
+    <header>
+      <h1 class="text-4xl font-bold text-green-400 tracking-wider">DRONE LAB</h1>
+      <p class="text-gray-400 text-lg">:: GRAPHICS & AUDIO LAB ::</p>
+    </header>
+
+    <!-- 그래픽 모드 선택 -->
+    <section class="bg-gray-700 p-3 border-2 border-gray-600">
+      <label class="text-gray-300 text-sm block mb-2">GRAPHICS MODE (뷰 선택)</label>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="view2dBtn" class="bg-blue-900 border-2 border-blue-400 p-2 text-lg">2D Flat View</button>
+        <button id="viewIsoBtn" class="bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600">Isometric 2.5D</button>
+      </div>
+    </section>
+
+    <!-- PID 및 사운드 스위치 -->
+    <section class="flex flex-col gap-3">
+      <div id="pidToggleBtn" class="flex items-center justify-between p-3 border-2 border-gray-600 bg-gray-700 cursor-pointer">
+        <span class="text-xl">AUTO-LEVEL (PID)</span>
+        <div id="pidSwitchBg" class="w-12 h-6 bg-green-500 border-2 border-black relative">
+          <div id="pidSwitchHandle" class="absolute right-0 top-0 w-5 h-full bg-gray-200 border-l-2 border-black"></div>
+        </div>
+      </div>
+
+      <div id="audioToggleBtn" class="flex items-center justify-between p-3 border-2 border-gray-600 bg-gray-700 cursor-pointer">
+        <span class="text-xl">SOUND MUTE</span>
+        <span id="audioStatusText" class="text-green-400 text-xl">ON</span>
+      </div>
+    </section>
+
+    <!-- 텔레메트리 -->
+    <section class="bg-black border-2 border-gray-600 p-4">
+      <div class="grid grid-cols-2 gap-2 text-xl">
+        <div><span class="text-gray-400 text-xs block">PITCH</span><span id="uiPitch" class="text-yellow-400">0.0°</span></div>
+        <div><span class="text-gray-400 text-xs block">ALTITUDE</span><span id="uiAlt" class="text-blue-400">0.0m</span></div>
+      </div>
+    </section>
+
+  </aside>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let currentViewMode = '2D'; // '2D' or 'ISO'
+  let isAudioMuted = false;
+  let audioCtx = null;
+  let motorOsc = null, motorGain = null;
+  let windNoise = null, windGain = null;
+
+  // Web Audio API 초기화
+  function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 1. 모터 사운드 (Sawtooth Synth)
+    motorOsc = audioCtx.createOscillator();
+    motorGain = audioCtx.createGain();
+    motorOsc.type = 'sawtooth';
+    motorOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
+    motorGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    motorOsc.connect(motorGain);
+    motorGain.connect(audioCtx.destination);
+    motorOsc.start();
+
+    // 2. 바람 사운드 (White Noise Buffer)
+    const bufferSize = audioCtx.sampleRate * 2;
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+
+    windNoise = audioCtx.createBufferSource();
+    windNoise.buffer = noiseBuffer;
+    windNoise.loop = true;
+    windGain = audioCtx.createGain();
+    windGain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+    windNoise.connect(windGain);
+    windGain.connect(audioCtx.destination);
+    windNoise.start();
+  }
+
+  // 화면 클릭 시 오디오 엔진 시작
+  document.getElementById('audioStartOverlay').addEventListener('click', function() {
+    initAudio();
+    this.style.display = 'none';
+  });
+
+  // 드론 물리 객체
+  const drone = { x: 400, y: 380, vx: 0, vy: 0, angle: 0, angularVelocity: 0, mass: 2.0 };
+  const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
+  let isPidOn = true;
+
+  window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+  window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+  // 뷰 모드 변경
+  document.getElementById('view2dBtn').addEventListener('click', (e) => {
+    currentViewMode = '2D';
+    e.target.className = "bg-blue-900 border-2 border-blue-400 p-2 text-lg";
+    document.getElementById('viewIsoBtn').className = "bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600";
+  });
+  document.getElementById('viewIsoBtn').addEventListener('click', (e) => {
+    currentViewMode = 'ISO';
+    e.target.className = "bg-blue-900 border-2 border-blue-400 p-2 text-lg";
+    document.getElementById('view2dBtn').className = "bg-gray-800 border-2 border-gray-500 p-2 text-lg hover:bg-gray-600";
+  });
+
+  // 메인 루프
+  function update() {
+    const isThrusting = keys.ArrowUp || keys.KeyW;
+    const thrust = isThrusting ? 50 : 0;
+
+    // 사운드 RPM 연동
+    if (audioCtx && !isAudioMuted) {
+      const targetFreq = isThrusting ? 140 : 60;
+      motorOsc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.1);
+    }
+
+    // 물리 단순 업데이트
+    const gravity = 9.8;
+    const ax = (thrust * Math.sin(drone.angle)) / drone.mass;
+    const ay = (-thrust * Math.cos(drone.angle) + (gravity * drone.mass * 2)) / drone.mass;
+
+    drone.vx += ax * 0.016;
+    drone.vy += ay * 0.016;
+    drone.x += drone.vx;
+    drone.y += drone.vy;
+
+    if (drone.y > 380) { drone.y = 380; drone.vy = 0; }
+
+    draw();
+    requestAnimationFrame(update);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (currentViewMode === '2D') {
+      // 2D Side View
+      ctx.fillStyle = "#1f2937";
+      ctx.fillRect(drone.x - 25, drone.y - 5, 50, 10);
+      ctx.fillStyle = "#b45309";
+      ctx.fillRect(drone.x - 10, drone.y + 5, 20, 15);
+    } else {
+      // Isometric 2.5D View (투영 공식 적용)
+      const isoX = (drone.x - drone.y) * 0.7 + 400;
+      const isoY = (drone.x + drone.y) * 0.3 + 50;
+
+      ctx.fillStyle = "#374151";
+      ctx.beginPath();
+      ctx.moveTo(isoX, isoY - 10);
+      ctx.lineTo(isoX + 20, isoY);
+      ctx.lineTo(isoX, isoY + 10);
+      ctx.lineTo(isoX - 20, isoY);
+      ctx.fill();
+
+      ctx.fillStyle = "#d97706";
+      ctx.fillRect(isoX - 8, isoY + 2, 16, 12);
+    }
+  }
+
+  update();
+</script>
+</body>
+</html>
