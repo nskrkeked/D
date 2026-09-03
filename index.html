@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Drone Delivery Lab - 2D Simulation</title>
+  <title>Pixel Drone Lab - Round Trip</title>
   
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
@@ -28,7 +28,7 @@
   <!-- 🎮 메인 게임 화면 -->
   <main class="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 bg-slate-900 relative">
     
-    <div class="w-full max-w-5xl aspect-video bg-sky-900 border-4 border-slate-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.8)] relative flex items-center justify-center overflow-hidden">
+    <div class="w-full max-w-5xl aspect-video bg-slate-950 border-4 border-slate-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.8)] relative flex items-center justify-center overflow-hidden">
       
       <canvas id="gameCanvas" width="800" height="450" class="w-full h-full object-contain"></canvas>
 
@@ -61,7 +61,7 @@
           </div>
 
           <button id="retryBtn" class="bg-green-600 hover:bg-green-500 text-black border-2 border-black font-bold px-6 py-2 text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
-            NEXT / RETRY MISSION
+            NEXT MISSION
           </button>
         </div>
       </div>
@@ -73,8 +73,8 @@
   <aside class="w-full lg:w-96 bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-slate-700 p-6 flex flex-col gap-5 justify-between">
     <div class="flex flex-col gap-4">
       <header>
-        <h1 class="text-4xl font-bold text-green-400 tracking-wider">DRONE LAB</h1>
-        <p class="text-slate-400 text-lg">:: 2D AEROSPACE SIMULATOR ::</p>
+        <h1 class="text-4xl font-bold text-green-400 tracking-wider">PIXEL DRONE</h1>
+        <p class="text-slate-400 text-lg">:: ROUND-TRIP CITY SIMULATOR ::</p>
       </header>
 
       <section class="bg-black border-2 border-slate-700 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)]">
@@ -92,15 +92,14 @@
       </section>
 
       <section class="bg-slate-800 border-2 border-slate-700 p-3 text-sm text-slate-300">
-        <p class="text-green-400 font-bold mb-1">⚠️ MISSION OBJECTIVE</p>
-        <p class="text-slate-300 mb-2">초록색 네온 화살표가 가리키는 <b>[TARGET]</b> 패드에 안전하게 착륙하세요!</p>
-        <p class="text-yellow-400 font-bold mb-1">🚨 OBSTACLE WARNING</p>
-        <p class="text-slate-400">중간에 있는 붉은색 구조물 타워를 피해 비행하세요.</p>
+        <p class="text-green-400 font-bold mb-1">🔁 MISSION MODE</p>
+        <p id="directionInfo" class="text-yellow-300 font-bold mb-2">현재 방향: [왼쪽 ➔ 오른쪽]</p>
+        <p class="text-slate-400">중간에 솟아있는 아파트 건물을 피해 반대편 패드 <b>[TARGET]</b>에 도착하세요.</p>
       </section>
     </div>
 
     <footer class="text-xs text-slate-500 text-center">
-      HTML5 Canvas & Tailwind CSS Game Engine
+      HTML5 Canvas Pixel Art Engine
     </footer>
   </aside>
 
@@ -116,13 +115,15 @@
   const logAngle = document.getElementById('logAngle');
   const retryBtn = document.getElementById('retryBtn');
   const startGuide = document.getElementById('startGuide');
+  const directionInfo = document.getElementById('directionInfo');
 
   const uiPitch = document.getElementById('uiPitch');
   const uiVy = document.getElementById('uiVy');
 
   let gameState = 'PLAYING';
   let isEngineStarted = false;
-  let pulseTimer = 0; // 네온 가이드 애니메이션 타이머
+  let pulseTimer = 0;
+  let isReverseDirection = false; // 🔁 반대 방향(오른쪽->왼쪽) 비행 여부
   
   const drone = {
     x: 80, y: 150,
@@ -132,14 +133,14 @@
     mass: 1.5
   };
 
-  // 🎯 가변형 목적지 (착륙 패드)
-  const landingPad = { x: 620, y: 280, width: 80, height: 10 };
+  // 🎯 가변 목적지 및 출발지 설정
+  const startPad = { x: 40, y: 320, width: 80, height: 10 };
+  const landingPad = { x: 680, y: 280, width: 80, height: 10 };
 
-  // 🚧 장애물 기둥 구조물
-  const obstacle = { x: 380, y: 180, width: 45, height: 240 };
+  // 🏢 장애물 역할을 할 중앙 픽셀 아파트 건물
+  const apartmentObstacle = { x: 360, y: 120, width: 80, height: 300 };
 
   const SAFETY_LIMITS = { maxVy: 2.0, maxVx: 1.5, maxAngle: 0.175 };
-
   const keys = { ArrowUp: false, KeyW: false, ArrowLeft: false, KeyA: false, ArrowRight: false, KeyD: false };
 
   window.addEventListener('keydown', e => { 
@@ -158,28 +159,37 @@
     if (keys.hasOwnProperty(e.code)) keys[e.code] = false; 
   });
 
-  retryBtn.addEventListener('click', resetGame);
+  retryBtn.addEventListener('click', onNextOrRetry);
 
-  // 🎲 무작위 매뉴버 난이도 생성 (장소 변경 및 장애물 재배치)
-  function randomizeStage() {
-    // 목적지 아파트 베란다 높이와 위치 랜덤화 (X: 550~680, Y: 180~320)
-    landingPad.x = Math.floor(Math.random() * 130) + 550;
-    landingPad.y = Math.floor(Math.random() * 140) + 180;
-
-    // 중간 장애물 위치 및 높이 무작위 재배치
-    obstacle.x = Math.floor(Math.random() * 100) + 330;
-    obstacle.height = Math.floor(Math.random() * 120) + 180;
-    obstacle.y = 420 - obstacle.height;
+  function onNextOrRetry() {
+    if (gameState === 'SUCCESS') {
+      // 성공했을 경우 방향 반전 (왕복 미션)
+      isReverseDirection = !isReverseDirection;
+    }
+    resetGame();
   }
 
   function resetGame() {
-    drone.x = 80; drone.y = 150;
+    // 방향에 따라 드론 및 목적지 위치 변경
+    if (!isReverseDirection) {
+      drone.x = 80; drone.y = 280;
+      startPad.x = 40; startPad.y = 320;
+      landingPad.x = 680; landingPad.y = 220 + Math.random() * 80;
+      directionInfo.textContent = "현재 방향: [왼쪽 ➔ 오른쪽]";
+    } else {
+      drone.x = 720; drone.y = 280;
+      startPad.x = 680; startPad.y = 320;
+      landingPad.x = 40; landingPad.y = 220 + Math.random() * 80;
+      directionInfo.textContent = "현재 방향: [오른쪽 ➔ 왼쪽 (복귀)]";
+    }
+
     drone.vx = 0; drone.vy = 0;
     drone.angle = 0; drone.angularVelocity = 0;
     gameState = 'PLAYING';
     isEngineStarted = false;
     
-    randomizeStage(); // 무작위 장소 & 장애물 새로 할당
+    // 중앙 아파트 장애물 높이/위치 가변 처리
+    apartmentObstacle.y = 100 + Math.floor(Math.random() * 60);
 
     startGuide.textContent = '▶ 방향키나 [W/A/D]를 누르면 시동이 걸립니다!';
     startGuide.classList.add('animate-pulse', 'text-yellow-400');
@@ -228,7 +238,6 @@
 
   function checkCollisions() {
     const droneBottom = drone.y + 15;
-    const droneTop = drone.y - 15;
     const droneLeft = drone.x - 20;
     const droneRight = drone.x + 20;
 
@@ -241,23 +250,17 @@
       return;
     }
 
-    // 2. 장애물 타워 충돌 감지
-    const hitObstacleX = droneRight > obstacle.x && droneLeft < (obstacle.x + obstacle.width);
-    const hitObstacleY = droneBottom > obstacle.y;
-    if (hitObstacleX && hitObstacleY) {
-      triggerMissionResult(false, "중간 장애물 구조물에 충돌했습니다!");
+    // 2. 아파트 장애물 충돌 감지
+    const hitAptX = droneRight > apartmentObstacle.x && droneLeft < (apartmentObstacle.x + apartmentObstacle.width);
+    const hitAptY = droneBottom > apartmentObstacle.y;
+    if (hitAptX && hitAptY) {
+      triggerMissionResult(false, "중앙 아파트 건물에 충돌했습니다!");
       return;
     }
 
-    // 3. 목적지 아파트 벽면 충돌 감지
-    if (droneRight > landingPad.x - 10 && drone.y > landingPad.y && !isOverPad) {
-      triggerMissionResult(false, "아파트 건물 벽면에 충돌했습니다!");
-      return;
-    }
-
-    // 4. 바닥 추락 감지
-    if (droneBottom >= 420) {
-      triggerMissionResult(false, "목적지를 벗어나 바닥에 추락했습니다!");
+    // 3. 화면 외곽 / 바닥 추락
+    if (droneBottom >= 420 || droneLeft < 0 || droneRight > 800) {
+      triggerMissionResult(false, "비행 구역을 벗어나 추락했습니다!");
     }
   }
 
@@ -271,9 +274,10 @@
     const isAngleSafe = absAngle <= SAFETY_LIMITS.maxAngle;
 
     if (isVySafe && isVxSafe && isAngleSafe) {
-      triggerMissionResult(true, "완벽합니다! 안전하게 택배를 배달했습니다.");
+      const msg = isReverseDirection ? "복귀 성공! 무사히 본부로 돌아왔습니다." : "배달 성공! 반대편 패드에 안전하게 도착했습니다.";
+      triggerMissionResult(true, msg);
     } else {
-      triggerMissionResult(false, "거친 착륙으로 화물이 손상되었습니다!");
+      triggerMissionResult(false, "거친 착륙으로 기체가 파손되었습니다!");
     }
   }
 
@@ -294,69 +298,106 @@
     logAngle.className = degAngle <= 10 ? 'text-green-400' : 'text-red-400';
 
     if (isSuccess) {
-      modalTitle.textContent = "DELIVERY SUCCESS";
+      modalTitle.textContent = "MISSION SUCCESS";
       modalTitle.className = "text-4xl font-bold mb-2 text-green-400 tracking-wider";
+      retryBtn.textContent = isReverseDirection ? "START AGAIN" : "RETURN MISSION ➔";
     } else {
       modalTitle.textContent = "MISSION FAILED";
       modalTitle.className = "text-4xl font-bold mb-2 text-red-500 tracking-wider";
+      retryBtn.textContent = "RETRY MISSION";
     }
 
     modalSub.textContent = message;
     resultModal.classList.remove('hidden');
   }
 
+  // 🎨 픽셀 아트 배경 및 아파트 직접 렌더링 함수
+  function drawPixelBackground() {
+    // 이미지 1 감성: 푸른 픽셀 하늘 & 도시 스카이라인
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, 420);
+    skyGrad.addColorStop(0, '#38bdf8');
+    skyGrad.addColorStop(0.4, '#0284c7');
+    skyGrad.addColorStop(0.8, '#1e3a8a');
+    skyGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 원경 실루엣 빌딩
+    ctx.fillStyle = '#1e293b';
+    for(let i=0; i<15; i++) {
+      ctx.fillRect(i*60, 200 + (i%3)*20, 45, 220);
+    }
+    ctx.fillStyle = '#334155';
+    for(let i=0; i<10; i++) {
+      ctx.fillRect(i*85 + 20, 250 - (i%4)*15, 55, 200);
+    }
+  }
+
+  function drawPixelApartment(x, y, width, height) {
+    // 이미지 2 감성: 타일형 픽셀 아파트 타워
+    ctx.fillStyle = '#cbd5e1'; // 타일 외벽 기본색
+    ctx.fillRect(x, y, width, height);
+
+    ctx.fillStyle = '#0f172a'; // 창문/베란다
+    const floors = Math.floor(height / 35);
+    for(let f = 0; f < floors; f++) {
+      const fy = y + 10 + f * 35;
+      ctx.fillRect(x + 10, fy, width - 20, 20); // 베란다 창문
+      ctx.fillStyle = '#38bdf8'; // 에어컨 실외기/창문 불빛
+      ctx.fillRect(x + 15, fy + 4, 12, 12);
+      ctx.fillStyle = '#f43f5e'; // 빨래/화분 느낌의 액센트 픽셀
+      ctx.fillRect(x + 35, fy + 12, 10, 4);
+      ctx.fillStyle = '#475569';
+    }
+
+    // 옥상 구조물
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(x + 15, y - 15, 30, 15);
+    ctx.fillRect(x + 50, y - 10, 15, 10);
+  }
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 하늘 배경
-    const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    skyGradient.addColorStop(0, '#0284c7');
-    skyGradient.addColorStop(1, '#38bdf8');
-    ctx.fillStyle = skyGradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 1. 픽셀 도시 야경 배경 (이미지 1 적용)
+    drawPixelBackground();
 
-    // 2. 목적지 아파트 건물
+    // 2. 출발지 & 목적지 건물 패드
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(startPad.x - 10, startPad.y, startPad.width + 20, 420 - startPad.y);
     ctx.fillStyle = '#334155';
-    ctx.fillRect(landingPad.x - 10, landingPad.y + 10, 250, 420 - landingPad.y);
+    ctx.fillRect(landingPad.x - 10, landingPad.y, landingPad.width + 20, 420 - landingPad.y);
 
-    // 3. 베란다 착륙 패드
+    // 패드 상단
     ctx.fillStyle = '#22c55e';
     ctx.fillRect(landingPad.x, landingPad.y, landingPad.width, landingPad.height);
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(landingPad.x, landingPad.y + landingPad.height, landingPad.width, 4);
 
-    // 4. 🎯 목적지 네온 표시기 (착륙 지점 강조)
-    const floatOffset = Math.sin(pulseTimer * 3) * 6; // 상하 위아래 바운싱 애니메이션
+    // 3. 중앙 장애물 아파트 (이미지 2 적용)
+    drawPixelApartment(apartmentObstacle.x, apartmentObstacle.y, apartmentObstacle.width, apartmentObstacle.height);
+
+    // 4. 🎯 Target 네온 표시기
+    const floatOffset = Math.sin(pulseTimer * 3) * 5;
     const padCenterX = landingPad.x + landingPad.width / 2;
-    const indicatorY = landingPad.y - 35 + floatOffset;
+    const indicatorY = landingPad.y - 30 + floatOffset;
 
-    // 네온 화살표
     ctx.fillStyle = '#22c55e';
     ctx.beginPath();
-    ctx.moveTo(padCenterX, indicatorY + 15);
-    ctx.lineTo(padCenterX - 12, indicatorY);
-    ctx.lineTo(padCenterX + 12, indicatorY);
+    ctx.moveTo(padCenterX, indicatorY + 12);
+    ctx.lineTo(padCenterX - 10, indicatorY);
+    ctx.lineTo(padCenterX + 10, indicatorY);
     ctx.closePath();
     ctx.fill();
 
-    // TARGET 텍스트
     ctx.fillStyle = '#fde047';
     ctx.font = 'bold 16px VT323, monospace';
     ctx.textAlign = 'center';
     ctx.fillText('▼ TARGET', padCenterX, indicatorY - 5);
 
-    // 5. 🚧 장애물 타워 기둥
-    ctx.fillStyle = '#991b1b'; // 경고성 붉은색 구조물
-    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-    // 장애물 테두리 Stripe 패턴
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, 6);
-
-    // 6. 바닥
-    ctx.fillStyle = '#0f172a';
+    // 5. 바닥 수면 / 리버 레이어
+    ctx.fillStyle = '#0284c7';
     ctx.fillRect(0, 420, canvas.width, 30);
 
-    // 7. 드론 렌더링
+    // 6. 드론 기체 렌더링
     ctx.save();
     ctx.translate(drone.x, drone.y);
     ctx.rotate(drone.angle);
@@ -369,8 +410,7 @@
     ctx.restore();
   }
 
-  // 초기 무작위 매뉴버 할당 후 실행
-  randomizeStage();
+  resetGame();
   update();
 </script>
 </body>
