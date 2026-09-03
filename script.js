@@ -226,3 +226,103 @@ class ParallaxBackground {
     ctx.fillRect(1100, 350, 100, 15);
   }
 }
+// --- 2D Wind Particle System Module ---
+
+class WindParticle {
+  constructor(boundsWidth, boundsHeight) {
+    this.boundsWidth = boundsWidth;
+    this.boundsHeight = boundsHeight;
+    this.reset(true);
+  }
+
+  // 파티클 재설정 (화면 밖으로 나갈 때 재활용)
+  reset(initial = false) {
+    // 카메라 영역보다 넓은 범위에 생성하여 화면 전환 시 자연스럽게 보이도록 함
+    this.x = initial ? Math.random() * this.boundsWidth : (Math.random() > 0.5 ? -50 : this.boundsWidth + 50);
+    this.y = Math.random() * this.boundsHeight;
+    
+    this.length = 10 + Math.random() * 25; // 바람 선의 길이
+    this.alpha = 0.2 + Math.random() * 0.5;  // 투명도
+    this.size = 1 + Math.random() * 1.5;    // 선 두께
+    this.depthFactor = 0.3 + Math.random() * 0.7; // 패럴랙스 입체감을 위한 깊이 계수 (0.3~1.0)
+  }
+
+  update(windX, windY, cameraVx, cameraVy, dt) {
+    // 바람의 영향 + 카메라 이동에 따른 반대 방향 상대 속도 적용
+    const effectiveWindX = windX * this.depthFactor - cameraVx * this.depthFactor;
+    const effectiveWindY = windY * this.depthFactor - cameraVy * this.depthFactor;
+
+    this.x += effectiveWindX * dt * 60;
+    this.y += effectiveWindY * dt * 60;
+
+    // 화면 경계를 벗어나면 반대편에서 재생성
+    if (this.x < -100 || this.x > this.boundsWidth + 100 ||
+        this.y < -100 || this.y > this.boundsHeight + 100) {
+      this.reset();
+    }
+  }
+
+  draw(ctx, windX, windY) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(224, 242, 254, ${this.alpha})`; // 연한 하늘색/백색 톤
+    ctx.lineWidth = this.size;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y);
+
+    // 바람 세기(속도)에 비례하여 바람 선의 궤적(Tail) 길이를 연장
+    const speed = Math.sqrt(windX * windX + windY * windY);
+    const tailScale = Math.min(speed * 1.5, 40); // 최대 궤적 길이 제한
+
+    // 바람 방향 각도 계산
+    const angle = Math.atan2(windY, windX);
+    const tailX = this.x - Math.cos(angle) * (this.length + tailScale);
+    const tailY = this.y - Math.sin(angle) * (this.length + tailScale);
+
+    ctx.lineTo(tailX, tailY);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+class WindSystem {
+  constructor(maxParticles = 60, width = 800, height = 450) {
+    this.width = width;
+    this.height = height;
+    this.particles = [];
+    
+    // 바람 상태 (X, Y 벡터 및 세기)
+    this.windX = 0; // + : 우측 바람, - : 좌측 바람
+    this.windY = 0; // + : 하강 기류, - : 상승 기류
+    
+    for (let i = 0; i < maxParticles; i++) {
+      this.particles.push(new WindParticle(width, height));
+    }
+  }
+
+  // 바람 상태 설정 (외부 물리 엔진에서 난기류 값 전달)
+  setWind(windX, windY) {
+    this.windX = windX;
+    this.windY = windY;
+  }
+
+  // 무작위 바람 흔들림 (돌풍/난기류 시뮬레이션)
+  applyTurbulence(time) {
+    // Sine 파형을 조합한 자연스러운 바람 변화
+    const baseWind = this.windX;
+    const gust = Math.sin(time * 2) * 3 + Math.cos(time * 5) * 2;
+    this.currentWindX = baseWind + gust;
+  }
+
+  updateAndDraw(ctx, cameraVx = 0, cameraVy = 0, dt = 0.016) {
+    ctx.save();
+    
+    for (const particle of this.particles) {
+      particle.update(this.windX, this.windY, cameraVx, cameraVy, dt);
+      particle.draw(ctx, this.windX, this.windY);
+    }
+
+    ctx.restore();
+  }
+}
