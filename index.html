@@ -711,3 +711,28 @@ update();
 </script>
 </body>
 </html>
+
+// --- 레벨 초기화 중 Chapter 1 입문자 보정 ---
+const chapterNum = Math.floor((currentLevel - 1) / 10) + 1;
+const levelInChapter = ((currentLevel - 1) % 10) + 1;
+
+// Chapter 1에서는 화물 무게를 0.2kg으로 대폭 줄이고 바람을 완전히 끕니다.
+if (chapterNum === 1) {
+  drone.cargoMass = 0.2;
+  environment.targetWindX = 0;
+  environment.windX = 0;
+} else {
+  drone.cargoMass = 0.5 + levelInChapter * 0.1;
+  environment.targetWindX = (Math.random() - 0.5) * (chapterNum * 2.0);
+}
+
+const totalMass = drone.baseMass + drone.cargoMass;
+uiMass.textContent = `${totalMass.toFixed(1)} kg (기체:${drone.baseMass} + 화물:${drone.cargoMass.toFixed(1)})`;
+if (drone.pidEnabled) {
+  // kp 값을 12.0 -> 22.0으로 올려 자동 수평 복원력을 강력하게 설정
+  const kp = 22.0; 
+  const kd = 4.5;  
+  const angleError = drone.targetAngle - drone.angle;
+  const pidTorque = (angleError * kp) - (drone.angularVelocity * kd);
+  drone.angularVelocity += pidTorque * dt;
+}
