@@ -1,0 +1,809 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Pixel Drone Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Press+Start+2P&display=swap">
+<style>
+/* Layout: one column. Status bar on top, 16:9 pixel stage, telemetry strip, touch/keyboard controls, oak-sign engineering notes. Single committed look (night-time Minecraft UI). */
+:root{
+  --bg:#1a1922; --panel:#2a2833; --panel2:#34323f; --edge:#0d0c12; --hi:#4d4a5c;
+  --text:#efeef5; --muted:#a8a6b8; --grass:#5fa83a;
+  --oak:#b8863f; --oak-d:#6b4a1f; --oak-l:#d1a255; --oak-s:#8a6228; --ink:#2a1a08;
+  --red:#e0483a; --gold:#f2c230; --cyan:#59e6e0; --ok:#5fd45a; --bad:#ff6a5a;
+  --px:'Press Start 2P','Courier New',monospace;
+  --ko:'Do Hyeon','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--ko); font-size:16px; line-height:1.45;
+  padding-block:12px 28px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+}
+.app{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.block{background:var(--panel);border:4px solid var(--edge);box-shadow:inset 4px 4px 0 var(--hi),inset -4px -4px 0 rgba(0,0,0,.4)}
+.lbl{font-family:var(--px);font-size:9px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{margin:0;font-family:var(--px);font-size:15px;letter-spacing:.04em;color:var(--gold);text-shadow:3px 3px 0 #5a4310}
+.brand span{color:var(--muted);font-size:14px}
+
+.top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 14px}
+.wxnow{display:flex;align-items:center;gap:10px}
+#wxicon{width:48px;height:48px;image-rendering:pixelated;background:#12111a;border:3px solid var(--edge)}
+.wxnow strong{display:block;font-size:22px;font-weight:400;line-height:1.1}
+.stg{font-family:var(--px);font-size:9px;color:var(--cyan)}
+.tipbox{min-width:0}
+.tipbox p{margin:4px 0 0;font-size:16px;min-height:2.9em}
+.vitals{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#hearts{display:flex;gap:3px}
+#hearts svg{width:22px;height:22px;image-rendering:pixelated}
+.bat{display:flex;align-items:center;gap:8px}
+.batbar{width:120px;height:14px;background:#12111a;border:3px solid var(--edge);position:relative}
+#batfill{position:absolute;inset:0 auto 0 0;width:100%;background:var(--ok)}
+#batnum{font-family:var(--px);font-size:10px;min-width:4.2em;text-align:right}
+
+.stagewrap{position:relative;border:4px solid var(--edge);background:#000;box-shadow:0 0 0 4px var(--hi)}
+#game{display:block;width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,9,14,.55);padding:10px}
+.overlay[hidden]{display:none}
+.card{width:min(100%,400px);padding:14px 16px 16px;text-align:center}
+.card h2{margin:6px 0 4px;font-size:26px;font-weight:400}
+.card p{margin:6px 0;font-size:16px}
+.card .stats{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:8px 0;text-align:left;font-size:15px}
+.card .stats b{font-weight:400;color:var(--cyan);float:right}
+.card .why{background:var(--oak);color:var(--ink);border:3px solid var(--oak-d);padding:6px 8px;font-size:14px;text-align:left}
+.card .why b{font-weight:400}
+.btn{
+  font-family:var(--ko);font-size:20px;color:#fff;text-shadow:2px 2px 0 #3a3a40;cursor:pointer;
+  background:#8b8b95;border:3px solid var(--edge);padding:8px 18px;
+  box-shadow:inset 3px 3px 0 #c6c6d0,inset -3px -3px 0 #55555e;
+  touch-action:none;-webkit-tap-highlight-color:transparent;
+}
+.btn:hover{background:#7d86b8}
+.btn:active,.btn.on{box-shadow:inset 3px 3px 0 #55555e,inset -3px -3px 0 #c6c6d0;background:#6d6d78}
+.btn:focus-visible,.chip:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+.btn.go{margin-top:8px;background:#5aa04a;box-shadow:inset 3px 3px 0 #9be08a,inset -3px -3px 0 #2e6a24}
+.btn.go:hover{background:#68b457}
+
+.tele{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px 12px}
+.tele div{min-width:0}
+.tele .v{display:block;font-family:var(--px);font-size:12px;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tele .v.ok{color:var(--ok)} .tele .v.bad{color:var(--bad)}
+.tele small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+
+.controls{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.pad{display:flex;gap:10px}
+.pad.r{justify-content:flex-end}
+.pad .btn{width:76px;height:76px;padding:0;font-family:var(--px);font-size:20px;display:grid;place-items:center}
+.mid{display:flex;flex-direction:column;gap:8px}
+.mid .btn{font-size:16px;padding:6px 12px;white-space:nowrap}
+.hint{margin:0;color:var(--muted);font-size:14px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--ko);font-size:15px;color:var(--ink);background:var(--oak-l);border:3px solid var(--oak-d);padding:3px 10px;cursor:pointer;box-shadow:inset 2px 2px 0 #e6bd74,inset -2px -2px 0 var(--oak-s)}
+.chip.on{background:#fff2c2;box-shadow:inset 2px 2px 0 #fff,inset -2px -2px 0 #d8b86a;font-weight:700}
+.notes{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px}
+.sign{background:var(--oak);color:var(--ink);border:4px solid var(--oak-d);box-shadow:inset 3px 3px 0 var(--oak-l),inset -3px -3px 0 var(--oak-s);padding:12px 14px;min-width:0}
+.sign h3{margin:0 0 6px;font-family:var(--px);font-size:10px;letter-spacing:.06em;color:#4a3210}
+.sign h4{margin:0 0 4px;font-size:20px;font-weight:400}
+.sign p{margin:0;font-size:16px}
+.sign.small p{font-size:15px}
+.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+.pick{display:flex;flex-direction:column;gap:6px;padding:10px 12px}
+
+@media (max-width:720px){
+  .top{grid-template-columns:1fr auto}
+  .tipbox{grid-column:1/-1;order:3}
+  .notes{grid-template-columns:1fr}
+  .tele{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .controls{grid-template-columns:1fr 1fr}
+  .mid{grid-column:1/-1;grid-row:2;flex-direction:row;justify-content:center}
+  .pad .btn{width:68px;height:68px}
+}
+@media (pointer:fine){.pad .btn{width:60px;height:60px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<main class="app">
+  <div class="brand"><h1>PIXEL DRONE LAB</h1><span>사람들 머리 위로 안전하게 날아 고객 집 앞에 택배를 내려놓으세요</span></div>
+
+  <header class="top block">
+    <div class="wxnow">
+      <canvas id="wxicon" width="16" height="16" aria-hidden="true"></canvas>
+      <div><span class="lbl">현재 날씨</span><strong id="wxname">맑음</strong><span class="stg" id="stg">STAGE 1</span></div>
+    </div>
+    <div class="tipbox"><span class="lbl">TIP</span><p id="tip"></p></div>
+    <div class="vitals">
+      <div id="hearts" aria-label="남은 하트"></div>
+      <div class="bat"><span class="lbl">배터리</span><div class="batbar"><div id="batfill"></div></div><span id="batnum">100%</span></div>
+    </div>
+  </header>
+
+  <div class="stagewrap">
+    <canvas id="game"></canvas>
+    <div class="overlay" id="overlay" hidden>
+      <div class="card block" id="card"></div>
+    </div>
+  </div>
+
+  <section class="tele block" aria-label="비행 정보">
+    <div><span class="lbl">수직 속도</span><span class="v" id="tVy">0.0 m/s</span><small>착륙 ≤ 4.0</small></div>
+    <div><span class="lbl">수평 속도</span><span class="v" id="tVx">0.0 m/s</span><small>착륙 ≤ 3.0</small></div>
+    <div><span class="lbl">기울기</span><span class="v" id="tAng">0°</span><small>착륙 ≤ ±12°</small></div>
+    <div><span class="lbl">측풍</span><span class="v" id="tWind">0.0</span><small>m/s² 방향 포함</small></div>
+    <div><span class="lbl">TWR</span><span class="v" id="tTwr">0.0</span><small>1보다 커야 떠요</small></div>
+  </section>
+
+  <section class="controls" aria-label="조작">
+    <div class="pad">
+      <button class="btn" data-k="left" aria-label="왼쪽으로 기울이기">◀</button>
+      <button class="btn" data-k="right" aria-label="오른쪽으로 기울이기">▶</button>
+    </div>
+    <div class="mid">
+      <button class="btn on" id="bPid" type="button">자동 수평 ON</button>
+      <button class="btn" id="bSnd" type="button">소리 ON</button>
+    </div>
+    <div class="pad r">
+      <button class="btn" data-k="down" aria-label="하강">▼</button>
+      <button class="btn" data-k="up" aria-label="추력 올리기">▲</button>
+    </div>
+  </section>
+  <p class="hint">키보드: W / ↑ 추력 · S / ↓ 하강 · A D / ← → 기울기 · P 자동 수평 · M 소리 · R 다시 시작 · Enter 확인</p>
+
+  <section class="notes">
+    <div class="sign">
+      <h3>ENGINEERING NOTE</h3>
+      <h4 id="cTitle"></h4>
+      <p id="cBody"></p>
+    </div>
+    <div class="stack">
+      <div class="sign small">
+        <h3>자동 수평 (PID)</h3>
+        <p>목표 각도(수평)와 지금 각도의 차이가 <b>오차</b>예요. P는 오차가 클수록 세게 되돌리고, D는 기울어지는 속도를 줄여 흔들림을 막아요.</p>
+      </div>
+      <div class="sign small">
+        <h3>안전 착륙</h3>
+        <p>충격 에너지는 ½mv²라서 속도가 2배면 충격은 4배예요. 땅의 착륙판에 천천히, 수평으로 내려앉으세요. 사람 위에서는 점선(안전 고도) 위로 날아요.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="block pick">
+    <span class="lbl">날씨 연습 모드</span>
+    <div class="chips" id="chips"></div>
+  </div>
+</main>
+<script>
+(function(){
+'use strict';
+var W=480,H=270,GY=248,PX=15,G=9.8*PX,FMAX=2.8*G;
+var cv=document.getElementById('game'),cx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+function $(id){return document.getElementById(id)}
+function R(x,y,w,h,c){cx.fillStyle=c;cx.fillRect(x,y,w,h)}
+function clamp(v,a,b){return v<a?a:v>b?b:v}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]}
+function mix(a,b,t){var p=hex(a),q=hex(b);return'rgb('+Math.round(p[0]+(q[0]-p[0])*t)+','+Math.round(p[1]+(q[1]-p[1])*t)+','+Math.round(p[2]+(q[2]-p[2])*t)+')'}
+
+/* ---------- weather data ---------- */
+var ORDER=['clear','wind','rain','fog','snow','thunder'];
+var WX={
+ clear:{name:'맑음',sky:['#5fb0ff','#8ccaff','#c5e5ff'],wind:0,gust:0,drag:0.8,mass:0,drain:1,fog:0,birds:1,clouds:4,cc:'#ffffff',sun:true,
+  tips:['맑은 날은 연습하기 좋아요. W로 올라간 뒤 천천히 오른쪽으로 가요.','착륙할 땐 내려가는 속도(수직 속도)가 4m/s보다 작아야 해요.','W를 떼면 드론이 천천히 가라앉아요. 택배 무게 때문이에요.'],
+  cTitle:'추력 대 중량비 (TWR)',cBody:'프로펠러가 내는 힘 ÷ 드론 전체 무게예요. 1보다 크면 떠오르고, 작으면 뜨지 못해요. 택배가 무거울수록 숫자가 작아져서 모터를 더 세게 돌려야 해요.'},
+ wind:{name:'강풍',sky:['#7fa8d2','#a3c3e2','#cfe0ee'],wind:2.4,gust:1.8,drag:0.8,mass:0,drain:1.05,fog:0,birds:2,clouds:7,cc:'#f1f5f9',sun:true,
+  tips:['옆바람이 계속 밀어요. 바람 반대쪽으로 살짝 기울이면 버틸 수 있어요.','바람은 세졌다 약해졌다 해요(돌풍). 한 번에 크게 기울이지 마세요.','건물 사이는 좁아요. 바람에 밀리면 부딪혀요.'],
+  cTitle:'측풍과 기울기',cBody:'드론을 기울이면 프로펠러 힘의 일부가 옆으로 향해요. 옆으로 미는 힘 = 추력 × sin(기울기). 바람이 밀면 반대쪽으로 기울여서 맞서요.'},
+ rain:{name:'비',sky:['#566574','#6f7e8b','#8d9aa5'],wind:1.4,gust:1.2,drag:0.8,mass:0.18,drain:1.25,fog:0.12,birds:1,clouds:8,cc:'#8993a0',rain:true,lit:true,
+  tips:['비에 젖어서 드론이 무거워졌어요. 배터리도 더 빨리 닳아요.','시야가 흐려요. 새와 건물을 일찍 보고 피하세요.','서두르지 말고 가장 짧은 길로 가세요.'],
+  cTitle:'무게 증가와 배터리 소모',cBody:'물이 묻으면 질량이 늘어서 TWR이 줄어요. 같은 높이를 유지하려면 모터를 더 세게 돌려야 하니까 전기를 더 써요.'},
+ fog:{name:'안개',sky:['#a5aeb4','#b9c1c6','#cfd5d8'],wind:0.6,gust:0.5,drag:0.8,mass:0,drain:1,fog:0.7,birds:3,clouds:5,cc:'#dfe4e6',
+  tips:['안개 속에서는 멀리 안 보여요. 목적지의 파란 빛기둥을 따라가세요.','속도가 빠르면 멈출 거리가 길어져요. 천천히 가요.','새가 갑자기 나타나요. 드론 주변을 잘 보세요.'],
+  cTitle:'제동거리와 센서 시야',cBody:'멈추는 데 필요한 거리는 속도의 제곱에 비례해요. 속도가 2배면 멈출 거리는 4배! 보이는 거리가 짧을수록 천천히 가야 해요.'},
+ snow:{name:'눈',sky:['#b3c2d3','#cfdae6','#e8eef4'],wind:1.0,gust:0.9,drag:0.4,mass:0.05,drain:1.4,fog:0.15,birds:1,clouds:8,cc:'#f4f7fa',snow:true,
+  tips:['추워서 배터리 힘이 약해져요. 평소보다 빨리 닳아요.','드론이 미끄러지듯 밀려요. 멈추려면 반대쪽으로 기울이세요.','땅과 지붕이 하얘졌어요. 착륙판 위치를 잘 확인하세요.'],
+  cTitle:'관성과 저온 배터리',cBody:'움직이던 물체는 계속 움직이려는 성질(관성)이 있어요. 멈추려면 반대 방향 힘이 필요해요. 그리고 배터리는 추우면 낼 수 있는 힘이 줄어요.'},
+ thunder:{name:'뇌우',sky:['#262b39','#3a4154','#566074'],wind:1.8,gust:2.0,drag:0.8,mass:0.12,drain:1.25,fog:0.2,birds:1,clouds:10,cc:'#3b4150',rain:true,bolts:true,lit:true,
+  tips:['빨간 경고 기둥이 보이면 옆으로 피하세요. 곧 번개가 쳐요.','번개는 높은 곳에 잘 떨어져요. 너무 높이 날지 마세요.','돌풍이 심해요. 자동 수평(P)을 켜 두면 도움이 돼요.'],
+  cTitle:'번개와 난기류',cBody:'번개는 높고 뾰족한 곳으로 떨어지기 쉬워요. 실제 드론도 천둥번개가 칠 때는 띄우지 않아요. 난기류는 공기가 불규칙하게 흐르는 현상이에요.'}
+};
+
+ORDER.forEach(function(k){WX[k].tips.push('사람 위를 지날 땐 점선(안전 고도) 위로 날아야 해요. 아래로 지나가면 사람이 놀라요.')});
+
+/* ---------- audio: note-block style ---------- */
+var ac=null,master=null,muted=false,FS=185;
+function initAudio(){
+  if(ac){if(ac.state==='suspended')ac.resume();return}
+  try{var C=window.AudioContext||window.webkitAudioContext;ac=new C();master=ac.createGain();master.gain.value=.35;master.connect(ac.destination)}catch(e){ac=null}
+}
+function nb(semi,dur,type,vol,delay){
+  if(!ac||muted)return;
+  var t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();
+  o.type=type||'triangle';o.frequency.value=FS*Math.pow(2,semi/12);
+  g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(vol||.4,t+.008);g.gain.exponentialRampToValueAtTime(.001,t+(dur||.25));
+  o.connect(g);g.connect(master);o.start(t);o.stop(t+(dur||.25)+.03);
+}
+function boom(){
+  if(!ac||muted)return;
+  var n=ac.sampleRate*.6,b=ac.createBuffer(1,n,ac.sampleRate),d=b.getChannelData(0);
+  for(var i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2);
+  var s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
+  f.type='lowpass';f.frequency.value=500;g.gain.value=.7;s.buffer=b;s.connect(f);f.connect(g);g.connect(master);s.start();
+}
+var SCALE=[0,3,5,7,10,12,15,17,19,22,24];
+function sfx(k){
+  if(k==='start'){nb(12,.2,'triangle',.4);nb(16,.2,'triangle',.4,.1)}
+  else if(k==='hurt'){nb(0,.4,'square',.35);nb(-5,.4,'sine',.5,.05)}
+  else if(k==='win'){[12,16,19,24,28].forEach(function(s,i){nb(s,.35,'triangle',.4,i*.11)});nb(0,.6,'sine',.35,0)}
+  else if(k==='fail'){[12,9,5,0].forEach(function(s,i){nb(s,.35,'square',.3,i*.14)})}
+  else if(k==='warn'){nb(19,.12,'square',.25);nb(19,.12,'square',.25,.16)}
+  else if(k==='bolt'){boom();nb(0,.5,'sine',.5)}
+  else if(k==='pid'){nb(14,.15,'triangle',.3)}
+}
+
+/* ---------- state ---------- */
+var stage=1,manual=null,wk='clear',wx=WX.clear,st='ready';
+var dr,hearts=3,inv=0,battery=100,t=0,shake=0,flash=0,pid=true,grounded=true;
+var cargoM=0.5,windDir=1,wph=0,delivered=false,lastFail='';
+var pads,hubImg,people=[],trees=[],builds=[],birds=[],bolts=[],parts=[],clouds=[],drops=[],skyC=null,gndC=null;
+var K={left:false,right:false,up:false,down:false};
+var nextBolt=3,noteT=0,tipT=0,tipI=0,hudT=0,overlayAct=null,fogAmt=0;
+
+var PALS={
+ stone:['#8a8a8e','#7a7a7e','#9a9a9e','#5c5c62','#3f3f44'],
+ brick:['#9a4a3c','#8a3f32','#a95a4a','#5a2a22','#3c1c16'],
+ sand:['#d9c58c','#cdb97f','#e4d29c','#9c8a52','#6e5f36'],
+ quartz:['#e4e1d8','#d6d3ca','#f0eee6','#a8a59c','#7a776f'],
+ iron:['#6a6e78','#5e626c','#767a85','#c9ccd2','#8e929c']
+};
+var PALN=['stone','brick','sand','quartz'];
+
+function makeBuilding(b,r,lit,snow){
+  var c=document.createElement('canvas');c.width=b.w;c.height=GY-b.top;
+  var g=c.getContext('2d'),p=PALS[b.pal];
+  g.fillStyle=p[0];g.fillRect(0,0,c.width,c.height);
+  var i;
+  for(i=0;i<c.width*c.height/14;i++){g.fillStyle=r()<.5?p[1]:p[2];g.fillRect((r()*c.width)|0,(r()*c.height)|0,2,2)}
+  g.fillStyle=p[3];g.fillRect(0,0,c.width,4);
+  g.fillStyle=p[4];g.fillRect(0,4,c.width,1);
+  g.fillStyle='rgba(0,0,0,.18)';g.fillRect(c.width-3,0,3,c.height);
+  var ww=6,wh=8,gx=5,gy=7,cols=Math.max(1,Math.floor((c.width-8)/(ww+gx))),x0=Math.floor((c.width-(cols*(ww+gx)-gx))/2);
+  for(var y=12;y+wh<c.height-4;y+=wh+gy){
+    for(i=0;i<cols;i++){
+      var on=lit&&r()<.5;
+      g.fillStyle=on?'#ffd860':'#27323f';g.fillRect(x0+i*(ww+gx),y,ww,wh);
+      g.fillStyle=on?'#fff0a8':'#3a4a5c';g.fillRect(x0+i*(ww+gx),y,ww,2);
+    }
+  }
+  if(snow){g.fillStyle='#f4f7fa';g.fillRect(0,0,c.width,3)}
+  return c;
+}
+
+function genStage(){
+  var r=rng(stage*9301+49297),n=stage;
+  builds=[];
+  pads={start:{x:22,w:56},goal:{x:364,w:56,goal:true}};
+  var nB=Math.min(4,2+Math.floor((n-1)/2)),slotW=256/nB;
+  for(var i=0;i<nB;i++){
+    var w=Math.round(Math.min(slotW-28,34+r()*14)),x=Math.round(96+i*slotW+(slotW-w)/2);
+    builds.push({x:x,w:w,top:GY-Math.round(60+r()*100),pal:PALN[(r()*4)|0]});
+  }
+  var lit=!!wx.lit,rr=rng(stage*17+3);
+  builds.forEach(function(b){b.img=makeBuilding(b,rr,lit||wk==='fog',wx.snow)});
+  hubImg=makeBuilding({w:80,top:GY-64,pal:'iron'},rr,true,wx.snow);
+  people=[];
+  var SH=['#3aa7b0','#d94a3a','#f2c230','#8a5fd0','#5fa83a','#e0e0e0'];
+  for(i=0;i<3+Math.min(n,4);i++)people.push({x:104+r()*240,vx:(r()<.5?-1:1)*(7+r()*8),sh:SH[(r()*SH.length)|0],ph:r()*6,sc:0});
+  trees=[];
+  for(i=0;i<9;i++)trees.push({x:92+r()*270,h:22+((r()*14)|0)});
+  /* birds */
+  birds=[];
+  var nBird=Math.min(6,wx.birds+Math.floor(n/2));
+  for(i=0;i<nBird;i++){
+    var dir=r()<.5?-1:1;
+    birds.push({x:80+r()*320,y:46+r()*(GY-150),by:0,vx:dir*(20+r()*26+n*1.5),ph:r()*6,amp:6+r()*12});
+    birds[i].by=birds[i].y;
+  }
+  /* clouds */
+  clouds=[];
+  for(i=0;i<wx.clouds;i++)clouds.push({x:r()*W,y:8+r()*70,w:44+r()*50,s:3+r()*7});
+  /* precip */
+  drops=[];
+  var nd=wx.rain?110:wx.snow?70:0;
+  for(i=0;i<nd;i++)drops.push({x:Math.random()*W,y:Math.random()*H,s:Math.random()});
+  /* sky */
+  skyC=document.createElement('canvas');skyC.width=W;skyC.height=H;
+  var g=skyC.getContext('2d'),bands=18;
+  for(i=0;i<bands;i++){
+    var f=i/(bands-1),c=f<.5?mix(wx.sky[0],wx.sky[1],f*2):mix(wx.sky[1],wx.sky[2],(f-.5)*2);
+    g.fillStyle=c;g.fillRect(0,Math.floor(i*GY/bands),W,Math.ceil(GY/bands)+1);
+  }
+  /* far hills (blocky) */
+  var hc=mix(wx.sky[2],'#4b6a4a',wx.snow?.1:.38),hh=0,hx;
+  g.fillStyle=hc;
+  for(hx=0;hx<W;hx+=16){hh+=Math.round((r()-.5)*2)*8;hh=clamp(hh,16,56);g.fillRect(hx,GY-hh,16,hh)}
+  /* distant city silhouette */
+  g.fillStyle=mix(wx.sky[2],'#53607a',.28);
+  for(hx=0;hx<W;hx+=22){var ch=18+((r()*34)|0);g.fillRect(hx+3,GY-ch,16,ch)}
+  /* ground */
+  gndC=document.createElement('canvas');gndC.width=W;gndC.height=H-GY;
+  g=gndC.getContext('2d');
+  g.fillStyle='#8a5a2b';g.fillRect(0,0,W,H-GY);
+  for(i=0;i<420;i++){g.fillStyle=r()<.5?'#7a4e24':(r()<.5?'#9a6a35':'#6e6e72');g.fillRect((r()*W)|0,(6+r()*(H-GY-6))|0,2,2)}
+  g.fillStyle=wx.snow?'#eef3f7':'#5fa83a';g.fillRect(0,0,W,6);
+  for(i=0;i<110;i++){g.fillStyle=wx.snow?(r()<.5?'#d7e0e8':'#fff'):(r()<.5?'#4f9230':'#75bf4a');g.fillRect((r()*W)|0,(r()*6)|0,2,2)}
+  g.fillStyle=wx.snow?'#d9e0e6':'#9a9aa0';g.fillRect(90,0,272,6);
+  for(i=0;i<60;i++){g.fillStyle=r()<.5?'#8a8a90':'#aaaab0';g.fillRect(90+((r()*270)|0),(r()*6)|0,2,2)}
+  g.fillStyle='rgba(0,0,0,.25)';g.fillRect(0,6,W,2);
+  fogAmt=wx.fog;
+}
+
+/* ---------- UI helpers ---------- */
+var ic=$('wxicon').getContext('2d');
+function icon(key){
+  ic.clearRect(0,0,16,16);
+  function r(x,y,w,h,c){ic.fillStyle=c;ic.fillRect(x,y,w,h)}
+  function cloud(c1,c2,y){r(3,y+2,10,4,c1);r(5,y,6,3,c1);r(3,y+5,10,1,c2)}
+  if(key==='clear'){r(5,5,6,6,'#ffd84a');r(6,6,4,4,'#fff2a0');r(7,1,2,2,'#ffd84a');r(7,13,2,2,'#ffd84a');r(1,7,2,2,'#ffd84a');r(13,7,2,2,'#ffd84a')}
+  else if(key==='wind'){r(1,4,9,1,'#dfe9f2');r(10,3,3,1,'#dfe9f2');r(12,4,1,2,'#dfe9f2');r(2,8,12,1,'#dfe9f2');r(4,12,8,1,'#dfe9f2');r(11,11,3,1,'#dfe9f2');r(13,12,1,2,'#dfe9f2')}
+  else if(key==='rain'){cloud('#9aa5b2','#74808e',1);r(4,9,1,3,'#59a7ff');r(8,10,1,3,'#59a7ff');r(11,9,1,3,'#59a7ff');r(6,13,1,2,'#59a7ff')}
+  else if(key==='fog'){r(2,3,12,2,'#c8cfd3');r(1,7,12,2,'#aeb6bb');r(3,11,11,2,'#c8cfd3')}
+  else if(key==='snow'){cloud('#e6edf3','#b9c6d2',1);r(4,9,2,2,'#fff');r(8,11,2,2,'#fff');r(11,9,2,2,'#fff');r(6,13,2,2,'#fff')}
+  else{cloud('#566074','#3a4154',0);r(8,6,3,2,'#ffd84a');r(6,8,4,2,'#ffd84a');r(8,10,2,2,'#ffd84a');r(7,12,2,3,'#ffd84a')}
+}
+function heartSVG(full){
+  var m=['.XX...XX.','XWXX.XXXX','XXXXXXXXX','XXXXXXXXX','.XXXXXXX.','..XXXXX..','...XXX...','....X....'],s='';
+  for(var y=0;y<m.length;y++)for(var x=0;x<9;x++){
+    var c=m[y][x];if(c==='.')continue;
+    s+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+(full?(c==='W'?'#ff9a8a':'#e0483a'):'#40343a')+'"/>';
+  }
+  return '<svg viewBox="0 0 9 8" shape-rendering="crispEdges" aria-hidden="true">'+s+'</svg>';
+}
+function updateHearts(){var s='';for(var i=0;i<3;i++)s+=heartSVG(i<hearts);$('hearts').innerHTML=s}
+function updateWxUI(){
+  $('wxname').textContent=wx.name;$('stg').textContent='STAGE '+stage;
+  tipI=0;tipT=0;$('tip').textContent=wx.tips[0];
+  $('cTitle').textContent=wx.cTitle;$('cBody').textContent=wx.cBody;
+  icon(wk);
+  var cs=document.querySelectorAll('.chip');
+  for(var i=0;i<cs.length;i++){var k=cs[i].getAttribute('data-wx')||'';cs[i].classList.toggle('on',(manual||'')===k)}
+}
+function buildChips(){
+  var h='<button type="button" class="chip" data-wx="">단계 순서</button>';
+  ORDER.forEach(function(k){h+='<button type="button" class="chip" data-wx="'+k+'">'+WX[k].name+'</button>'});
+  $('chips').innerHTML=h;
+  $('chips').addEventListener('click',function(e){
+    var b=e.target.closest('.chip');if(!b)return;
+    var k=b.getAttribute('data-wx');manual=k?k:null;reset();
+  });
+}
+function showCard(html,label,act){
+  $('card').innerHTML=html+'<button type="button" class="btn go" data-act="1">'+label+'</button>';
+  overlayAct=act;$('overlay').hidden=false;
+}
+function hideCard(){$('overlay').hidden=true;overlayAct=null}
+function doAct(){
+  if(!overlayAct)return;
+  var a=overlayAct;hideCard();
+  if(a==='start')startFlight();else if(a==='retry')reset();else if(a==='next'){stage++;reset()}
+}
+function showReady(){
+  showCard('<span class="lbl">STAGE '+stage+'</span><h2>'+wx.name+' 속 배달</h2><p>왼쪽 택배 허브 땅에서 이륙해 사람들 머리 위(점선 안전 고도 위)로 날아가, 오른쪽 고객 집 앞 착륙판에 내려놓으세요.</p><p>아무 키나 누르거나 ▲ 버튼을 누르면 시동이 걸려요.</p>','시동 걸기','start');
+}
+var FAILS={
+ hearts:{t:'하트가 모두 사라졌어요',b:'새와 건물에 여러 번 부딪혔어요.',w:'부딪힐 것 같으면 미리 방향을 바꿔요. 속도가 빠를수록 충돌 충격(운동에너지 ½mv²)이 커져요.'},
+ crash:{t:'너무 세게 내려앉았어요',b:'땅이나 지붕에 빠른 속도로 부딪혔어요.',w:'충격 에너지는 속도의 제곱으로 커져요. 속도가 2배면 충격은 4배! 착륙 직전엔 W로 속도를 줄여요.'},
+ battery:{t:'배터리가 바닥났어요',b:'배터리가 0이 되어 프로펠러가 멈췄어요.',w:'추력이 0이면 중력만 남아서 떨어져요. 필요 없이 높이 올라가면 전기를 더 써요. 짧은 길로 가세요.'},
+ pad:{t:'착륙에 실패했어요',b:'',w:'착륙판 위에서 속도와 기울기를 한계 안으로 줄여야 해요. 멈추려면 가던 방향의 반대쪽으로 기울이세요(관성).'}
+};
+function fail(kind,ex){
+  if(st!=='fly')return;
+  if(kind==='crash'&&battery<=0)kind='battery';
+  st='fail';sfx('fail');shake=.3;
+  var f=FAILS[kind],b=f.b;
+  if(kind==='pad'&&ex){
+    var l=[];
+    if(ex.vy>4)l.push('내려가는 속도 '+ex.vy.toFixed(1)+'m/s (한계 4.0)');
+    if(ex.vx>3)l.push('옆 속도 '+ex.vx.toFixed(1)+'m/s (한계 3.0)');
+    if(ex.ad>12)l.push('기울기 '+ex.ad.toFixed(0)+'° (한계 12°)');
+    b=l.join(' · ');
+  }
+  showCard('<span class="lbl">MISSION FAILED</span><h2>'+f.t+'</h2><p>'+b+'</p><div class="why"><b>공학 노트</b><br>'+f.w+'</div>','다시 도전','retry');
+}
+function win(vy,vx,ad){
+  if(st!=='fly')return;
+  st='win';delivered=true;dr.cargo=false;sfx('win');
+  showCard('<span class="lbl">MISSION COMPLETE</span><h2>배달 완료!</h2><p>택배가 안전하게 도착했어요.</p><div class="stats"><span>수직 속도<b>'+vy.toFixed(1)+' m/s</b></span><span>수평 속도<b>'+vx.toFixed(1)+' m/s</b></span><span>착륙 기울기<b>'+ad.toFixed(0)+'°</b></span><span>남은 배터리<b>'+Math.round(battery)+'%</b></span></div><div class="why"><b>공학 노트</b><br>속도가 느릴수록 충격 에너지(½mv²)가 작아서 택배가 안전해요. 다음 단계는 날씨와 장애물이 달라져요.</div>','다음 단계','next');
+}
+function startFlight(){
+  if(st!=='ready')return;
+  initAudio();st='fly';hideCard();sfx('start');
+}
+
+/* ---------- world ---------- */
+function reset(){
+  wk=manual||ORDER[(stage-1)%ORDER.length];wx=WX[wk];
+  cargoM=Math.min(1,0.4+0.06*stage);
+  hearts=3;inv=0;battery=100;t=0;shake=0;flash=0;delivered=false;grounded=true;bolts=[];parts=[];nextBolt=3;noteT=0;
+  var r=rng(stage*31+7);windDir=r()<.5?-1:1;wph=r()*6;
+  genStage();
+  var s=pads.start;
+  dr={x:s.x+s.w/2,y:GY-15,vx:0,vy:0,ang:0,angv:0,thr:0,cargo:true};
+  st='ready';updateHearts();updateWxUI();showReady();updateHud(true);
+}
+var windNow=0;
+function mass(){return 1+(dr.cargo?cargoM:0)+wx.mass}
+function hit(){
+  if(inv>0||st!=='fly')return;
+  hearts--;inv=1.3;shake=.25;sfx('hurt');updateHearts();
+  if(hearts<=0)fail('hearts');
+}
+function surfaceAt(x){
+  var y=GY;
+  for(var i=0;i<builds.length;i++){var b=builds[i];if(x>=b.x&&x<=b.x+b.w&&b.top<y)y=b.top}
+  return y;
+}
+function touch(top,b){
+  var d=dr,ad=Math.abs(d.ang*57.2958);
+  if(b&&b.goal&&d.x>b.x+3&&d.x<b.x+b.w-3){
+    var vy=d.vy/PX,vx=Math.abs(d.vx)/PX;
+    if(d.vy<=4*PX&&Math.abs(d.vx)<=3*PX&&ad<=12){d.y=top-15;d.vy=0;d.vx=0;win(Math.max(0,vy),vx,ad)}
+    else fail('pad',{vy:vy,vx:vx,ad:ad});
+    return;
+  }
+  if(d.vy>140){fail('crash');return}
+  if(b&&d.vy>75){d.y=top-15;d.vy=-d.vy*.3;hit();return}
+  d.y=top-15;d.vy=0;d.vx*=.85;grounded=true;
+}
+function collide(){
+  var d=dr,i,b,l=d.x-15,r=d.x+15,bot=d.y+15;
+  grounded=false;
+  for(i=0;i<builds.length;i++){
+    b=builds[i];l=d.x-15;r=d.x+15;bot=d.y+15;
+    if(r>b.x&&l<b.x+b.w&&bot>b.top){
+      var pT=bot-b.top,pL=r-b.x,pR=b.x+b.w-l;
+      if(pT<=pL&&pT<=pR&&d.vy>=-20){touch(b.top,b)}
+      else{
+        if(pL<pR){d.x-=pL;d.vx=-Math.abs(d.vx)*.4-20}else{d.x+=pR;d.vx=Math.abs(d.vx)*.4+20}
+        hit();
+      }
+      if(st!=='fly')return;
+    }
+  }
+  bot=d.y+15;
+  if(bot>=GY){var gp=pads.goal;touch(GY,(d.x>gp.x+3&&d.x<gp.x+gp.w-3)?gp:null);if(st!=='fly')return}
+  if(d.x<15){d.x=15;d.vx=Math.abs(d.vx)*.3}
+  if(d.x>W-15){d.x=W-15;d.vx=-Math.abs(d.vx)*.3}
+  if(d.y<12){d.y=12;if(d.vy<0)d.vy=0}
+  for(i=0;i<birds.length;i++){
+    var bd=birds[i];
+    if(bd.x>d.x-21&&bd.x<d.x+21&&bd.y>d.y-16&&bd.y<d.y+19&&inv<=0){
+      d.vx+=(d.x>bd.x?1:-1)*60;d.vy-=40;hit();if(st!=='fly')return;
+    }
+  }
+}
+
+function update(dt){
+  t+=dt;
+  var i;
+  /* ambient */
+  for(i=0;i<clouds.length;i++){var c=clouds[i];c.x+=windDir*c.s*dt*(1+wx.wind*.4);if(c.x>W+20)c.x=-c.w;if(c.x<-c.w-20)c.x=W+10}
+  for(i=0;i<drops.length;i++){
+    var p=drops[i];
+    if(wx.rain){p.y+=(230+p.s*110)*dt;p.x+=windDir*(20+wx.wind*10)*dt}
+    else{p.y+=(26+p.s*22)*dt;p.x+=(Math.sin(t*1.5+p.s*10)*10+windDir*wx.wind*8)*dt}
+    if(p.y>H){p.y=-6;p.x=Math.random()*W}
+    if(p.x>W+4)p.x=-4;if(p.x<-4)p.x=W+4;
+  }
+  if(st==='fly'||st==='ready'){
+    for(i=0;i<birds.length;i++){
+      var bd=birds[i];bd.x+=bd.vx*dt;
+      if(bd.x>W+24)bd.x=-24;if(bd.x<-24)bd.x=W+24;
+      bd.y=bd.by+Math.sin(t*2+bd.ph)*bd.amp;
+    }
+    for(i=0;i<people.length;i++){var pp=people[i];pp.x+=pp.vx*dt;if(pp.x<100){pp.x=100;pp.vx=Math.abs(pp.vx)}if(pp.x>348){pp.x=348;pp.vx=-Math.abs(pp.vx)}if(pp.sc>0)pp.sc-=dt}
+  }
+  for(i=parts.length-1;i>=0;i--){var q=parts[i];q.life-=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;if(q.life<=0)parts.splice(i,1)}
+  if(shake>0)shake-=dt;
+  if(flash>0)flash-=dt;
+  windNow=windDir*(wx.wind+wx.gust*Math.sin(t*.9+wph)*Math.sin(t*.37+1))*PX;
+  tipT+=dt;
+  if(tipT>7){tipT=0;tipI=(tipI+1)%wx.tips.length;$('tip').textContent=wx.tips[tipI]}
+  if(st!=='fly')return;
+
+  /* flight physics */
+  var d=dr,m=mass(),hover=m/2.8;
+  inv-=dt;
+  var tgt=battery>0?(K.up?1:(K.down?.08:hover*.9)):0;
+  d.thr+=(clamp(tgt,0,1)-d.thr)*Math.min(1,dt*7);
+  var aT=d.thr*FMAX/m;
+  var inp=(K.right?1:0)-(K.left?1:0);
+  if(inp){d.angv+=(inp*1.8-d.angv)*Math.min(1,dt*9)}
+  else if(pid){d.angv+=(-11*d.ang-5.2*d.angv)*dt}
+  else d.angv*=(1-Math.min(1,dt*2.5));
+  if(!grounded)d.angv+=windNow*.01*dt;
+  d.ang+=d.angv*dt;
+  if(d.ang>.4){d.ang=.4;d.angv=0}
+  if(d.ang<-.4){d.ang=-.4;d.angv=0}
+  if(grounded&&!inp){d.ang*=.85;d.angv=0}
+  var ax=Math.sin(d.ang)*aT+(grounded?0:windNow)-wx.drag*d.vx;
+  var ay=G-Math.cos(d.ang)*aT-wx.drag*d.vy;
+  d.vx+=ax*dt;d.vy+=ay*dt;d.x+=d.vx*dt;d.y+=d.vy*dt;
+  battery-=dt*(.9+2.6*d.thr*(m/1.5))*wx.drain*((grounded&&d.thr<.3)?.3:1);
+  if(battery<0)battery=0;
+  /* dust */
+  if(grounded&&d.thr>.55&&Math.random()<.5)parts.push({x:d.x+(Math.random()-.5)*26,y:d.y+15,vx:(Math.random()-.5)*70,vy:-Math.random()*14,life:.5});
+  /* note-block melody follows altitude */
+  noteT-=dt;
+  if(!grounded&&noteT<=0){
+    noteT=.5;
+    var idx=Math.round((1-d.y/GY)*10+(Math.random()-.5)*2.4);
+    nb(SCALE[clamp(idx,0,10)],.3,'triangle',.11);
+  }
+  collide();
+  if(st!=='fly')return;
+  if(GY-(d.y+15)<55){for(i=0;i<people.length;i++){var pq=people[i];if(Math.abs(pq.x-d.x)<22){pq.sc=1.6;if(inv<=0){hit();break}}}}
+  if(st!=='fly')return;
+  if(battery<=0&&grounded&&d.thr<.05)fail('battery');
+  /* lightning */
+  if(wx.bolts){
+    nextBolt-=dt;
+    if(nextBolt<=0){
+      nextBolt=3+Math.random()*3;
+      var bx=Math.random()<.5?d.x+(Math.random()-.5)*60:builds[(Math.random()*builds.length)|0].x+20;
+      bx=clamp(Math.round(bx),20,W-20);
+      bolts.push({x:bx,w:1.3,s:0,end:surfaceAt(bx),pts:null});
+      sfx('warn');
+    }
+  }
+  for(i=bolts.length-1;i>=0;i--){
+    var bl=bolts[i];
+    if(bl.s===0){
+      bl.w-=dt;
+      if(bl.w<=0){
+        bl.s=1;bl.w=.25;flash=.18;shake=.2;sfx('bolt');
+        var pts=[],y=0,x=bl.x;
+        while(y<bl.end){pts.push([x,y]);x=bl.x+Math.round((Math.random()-.5)*14);y+=14+((Math.random()*10)|0)}
+        pts.push([bl.x,bl.end]);bl.pts=pts;
+        if(Math.abs(d.x-bl.x)<18)hit();
+      }
+    }else{bl.w-=dt;if(bl.w<=0)bolts.splice(i,1)}
+  }
+}
+
+/* ---------- drawing ---------- */
+function drawCloud(c,shade){
+  var x=Math.round(c.x),y=Math.round(c.y),w=Math.round(c.w);
+  R(x+6,y-6,Math.round(w*.55),7,wx.cc);
+  R(x+Math.round(w*.5),y-9,Math.round(w*.3),5,wx.cc);
+  R(x,y,w,9,wx.cc);
+  R(x,y+7,w,2,shade);
+}
+function drawBird(b){
+  var dist=Math.abs(b.x-dr.x)+Math.abs(b.y-dr.y),a=1;
+  if(fogAmt>0.3)a=1-fogAmt*clamp((dist-70)/150,0,1)*.95;
+  cx.save();cx.globalAlpha=a;
+  cx.translate(Math.round(b.x),Math.round(b.y));
+  if(b.vx<0)cx.scale(-1,1);
+  var f=Math.floor(t*8+b.ph)%2;
+  R(-3,-1,7,4,'#3a3a44');R(4,-2,4,4,'#3a3a44');R(8,0,3,2,'#f0a030');R(5,-1,1,1,'#fff');R(-6,0,3,2,'#2c2c34');
+  if(f){R(-2,-5,5,4,'#52525e');R(0,-8,3,3,'#52525e')}else{R(-2,3,6,3,'#52525e');R(-4,5,4,2,'#52525e')}
+  cx.restore();
+}
+function drawBuild(b){
+  cx.drawImage(b.img,b.x,b.top);
+  if(!b.start&&!b.goal)return;
+  var pc=b.goal?'#4be36b':'#f2c230',mx=Math.round(b.x+b.w/2);
+  R(b.x+4,b.top-1,b.w-8,2,'#2c2e34');R(b.x+5,b.top-1,b.w-10,1,pc);
+  var on=Math.floor(t*2)%2===0;
+  R(b.x+5,b.top-4,2,3,on?pc:'#555');R(b.x+b.w-7,b.top-4,2,3,on?pc:'#555');
+  if(b.start){R(b.x+10,b.top-14,2,13,'#cfd2d8');R(b.x+12,b.top-14,10,6,'#f2c230')}
+  else{
+    var ox=b.x+b.w-22;
+    R(ox,b.top-11,14,10,'#5a3814');R(ox+1,b.top-10,12,8,'#a0682a');R(ox+1,b.top-10,12,2,'#b97a35');R(ox+6,b.top-7,2,3,'#f2c230');
+  }
+  if(b.goal&&delivered){R(mx-8,b.top-10,12,9,'#5a3814');R(mx-7,b.top-9,10,7,'#a0682a');R(mx-3,b.top-6,2,3,'#f2c230')}
+  cx.font='11px "Do Hyeon","Apple SD Gothic Neo",sans-serif';cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.fillStyle='rgba(0,0,0,.6)';cx.fillText(b.goal?'도착':'출발',mx+1,b.top-17);
+  cx.fillStyle='#fff';cx.fillText(b.goal?'도착':'출발',mx,b.top-18);
+}
+function drawDrone(){
+  var d=dr;
+  cx.save();cx.translate(Math.round(d.x),Math.round(d.y));cx.rotate(d.ang);
+  if(inv>0&&Math.floor(t*14)%2===0)cx.globalAlpha=.45;
+  R(-11,4,2,10,'#3b3e46');R(9,4,2,10,'#3b3e46');R(-13,13,26,2,'#2a2c32');
+  if(d.cargo){R(-6,4,12,9,'#5a3814');R(-5,5,10,7,'#a0682a');R(-5,5,10,2,'#b97a35');R(-1,8,2,3,'#f2c230')}
+  R(-16,-5,32,2,'#4a4d55');
+  R(-9,-4,18,9,'#c9ccd2');R(-9,-4,18,2,'#e8eaee');R(-9,3,18,2,'#8b8f98');
+  R(-2,-1,4,3,'#23252b');
+  var blink=Math.floor(t*3)%2===0;
+  R(-1,0,2,1,pid?(blink?'#4be36b':'#2a7a3c'):'#e34b4b');
+  R(-18,-8,5,4,'#2d3037');R(13,-8,5,4,'#2d3037');
+  var spin=(st==='fly'&&d.thr>.04)||st==='ready';
+  if(spin){
+    var f=Math.floor(t*30)%2,al=st==='ready'?.35:.6;
+    R(-25,-10,19,1,'rgba(225,235,245,'+al+')');R(6,-10,19,1,'rgba(225,235,245,'+al+')');
+    R(f?-22:-24,-11,13,1,'rgba(225,235,245,'+(al*.5)+')');R(f?10:8,-11,13,1,'rgba(225,235,245,'+(al*.5)+')');
+  }else{
+    R(-25,-10,19,1,'#5a5d66');R(6,-10,19,1,'#5a5d66');
+  }
+  R(-17,-10,3,2,'#e8eaee');R(14,-10,3,2,'#e8eaee');
+  cx.restore();
+}
+function drawTrees(){
+  for(var i=0;i<trees.length;i++){
+    var tr=trees[i],x=Math.round(tr.x),top=GY-tr.h,lc=wx.snow?'#dfe8ee':'#3f8a2e',ld=wx.snow?'#c4d0d8':'#2f6e22';
+    R(x+4,GY-10,4,10,'#5a3a1a');
+    R(x-2,top,16,tr.h-8,lc);R(x,top-4,12,4,lc);R(x-2,GY-18,16,3,ld);R(x+2,top+6,3,3,ld);R(x+8,top+12,3,3,ld);
+  }
+}
+function person(x,y,sh,ph,up){
+  var l=Math.floor(t*6+ph)%2;
+  R(x-3,y-16,6,6,'#c68a5e');R(x-3,y-16,6,2,'#4a3320');R(x-1,y-13,1,1,'#222');R(x+1,y-13,1,1,'#222');
+  R(x-3,y-10,6,6,sh);
+  R(x-3,y-4,2,l?4:3,'#3b3fa0');R(x+1,y-4,2,l?3:4,'#3b3fa0');
+  if(up){R(x-5,y-15,2,6,'#c68a5e');R(x+3,y-15,2,6,'#c68a5e')}else{R(x-5,y-10,2,5,'#c68a5e');R(x+3,y-10,2,5,'#c68a5e')}
+}
+function label(txt,x,y,size,col){
+  cx.font=size+'px "Do Hyeon","Apple SD Gothic Neo",sans-serif';cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.fillStyle='rgba(0,0,0,.6)';cx.fillText(txt,x+1,y+1);cx.fillStyle=col||'#fff';cx.fillText(txt,x,y);
+}
+function drawPads(){
+  var on=Math.floor(t*2)%2===0,s=pads.start,g=pads.goal;
+  R(10,GY-58,72,12,'#2c2e34');label('택배 허브',46,GY-49,11,'#f2c230');
+  [[s,'#f2c230','출발'],[g,'#4be36b','도착']].forEach(function(a){
+    var p=a[0],pc=a[1];
+    R(p.x,GY-3,p.w,3,'#2c2e34');R(p.x+1,GY-3,p.w-2,1,pc);
+    R(p.x+2,GY-7,2,4,on?pc:'#555');R(p.x+p.w-4,GY-7,2,4,on?pc:'#555');
+    label(a[2],p.x+(p.w>>1),GY-12,11);
+  });
+  var hx=428;
+  R(hx,GY-40,48,40,'#b8863f');R(hx,GY-27,48,1,'#8a6228');R(hx,GY-14,48,1,'#8a6228');
+  R(hx-4,GY-46,56,6,'#9a4a3c');R(hx+4,GY-52,40,6,'#8a3f32');R(hx+12,GY-58,24,6,'#9a4a3c');
+  R(hx+30,GY-26,10,26,'#5a3814');R(hx+37,GY-14,2,2,'#f2c230');
+  R(hx+6,GY-30,14,12,'#9fd8ff');R(hx+12,GY-30,2,12,'#7a5a2a');R(hx+6,GY-25,14,2,'#7a5a2a');
+  person(g.x+g.w+3,GY-(delivered?Math.round(Math.abs(Math.sin(t*8))*5):0),'#d94a3a',0,delivered);
+  if(delivered){var bx=g.x+g.w-16;R(bx,GY-12,12,9,'#5a3814');R(bx+1,GY-11,10,7,'#a0682a');R(bx+5,GY-8,2,3,'#f2c230')}
+}
+function drawSafeLine(){
+  var y=GY-55;
+  for(var x=96;x<352;x+=12)R(x,y,6,1,'rgba(255,255,255,.6)');
+  cx.font='10px "Do Hyeon","Apple SD Gothic Neo",sans-serif';cx.textAlign='left';cx.textBaseline='alphabetic';
+  cx.fillStyle='rgba(255,255,255,.8)';cx.fillText('안전 고도',98,y-3);
+}
+function drawPeople(){
+  var any=false;
+  for(var i=0;i<people.length;i++){
+    var p=people[i],x=Math.round(p.x);
+    person(x,GY,p.sh,p.ph,p.sc>0);
+    if(p.sc>0){any=true;R(x-1,GY-27,2,5,'#ffd84a');R(x-1,GY-20,2,2,'#ffd84a')}
+  }
+  if(any)label('사람 위예요! 더 높이 올라가세요',W/2,26,14,'#ffd84a');
+}
+function draw(){
+  var i;
+  cx.save();
+  if(shake>0)cx.translate(((Math.random()-.5)*5)|0,((Math.random()-.5)*5)|0);
+  cx.drawImage(skyC,0,0);
+  if(wx.sun){R(366,26,26,26,'#ffd84a');R(369,29,20,20,'#fff2a0')}
+  var shade=mix(wx.cc,'#000000',.14);
+  for(i=0;i<clouds.length;i++)drawCloud(clouds[i],shade);
+  drawTrees();
+  cx.drawImage(hubImg,6,GY-64);
+  for(i=0;i<builds.length;i++)drawBuild(builds[i]);
+  cx.drawImage(gndC,0,GY);
+  drawPads();
+  drawSafeLine();
+  drawPeople();
+  for(i=0;i<birds.length;i++)drawBird(birds[i]);
+  /* lightning */
+  for(i=0;i<bolts.length;i++){
+    var b=bolts[i];
+    if(b.s===0){
+      var a=.12+.1*(Math.floor(t*8)%2);
+      R(b.x-12,0,24,b.end,'rgba(255,60,50,'+a+')');
+      R(b.x-12,b.end-3,24,3,'rgba(255,60,50,.6)');
+    }else if(b.pts){
+      for(var k=0;k<b.pts.length-1;k++){
+        var p0=b.pts[k],p1=b.pts[k+1],hh=Math.max(2,Math.round(p1[1]-p0[1]));
+        R(Math.min(p0[0],p1[0])-1,p0[1],Math.abs(p1[0]-p0[0])+3,hh,'#fff6b0');
+        R(Math.min(p0[0],p1[0]),p0[1],Math.abs(p1[0]-p0[0])+1,hh,'#ffffff');
+      }
+    }
+  }
+  if(fogAmt>0){
+    var g=cx.createRadialGradient(dr.x,dr.y,40,dr.x,dr.y,150);
+    g.addColorStop(0,'rgba(205,212,216,0)');g.addColorStop(1,'rgba(205,212,216,'+(.3+fogAmt*.6).toFixed(2)+')');
+    cx.fillStyle=g;cx.fillRect(0,0,W,H);
+  }
+  drawDrone();
+  for(i=0;i<parts.length;i++){var q=parts[i];R(Math.round(q.x),Math.round(q.y),2,2,'rgba(225,225,230,'+clamp(q.life*2,0,1).toFixed(2)+')')}
+  for(i=0;i<drops.length;i++){
+    var p=drops[i];
+    if(wx.rain)R(Math.round(p.x),Math.round(p.y),1,5,'rgba(160,200,255,.65)');
+    else R(Math.round(p.x),Math.round(p.y),2,2,'#ffffff');
+  }
+  /* beacon at goal */
+  var gb=pads.goal,bxm=Math.round(gb.x+gb.w/2),ba=.14+.05*Math.sin(t*3);
+  R(bxm-5,0,10,(GY-6),'rgba(120,243,255,'+ba.toFixed(2)+')');
+  R(bxm-2,0,4,(GY-6),'rgba(210,255,255,'+(ba+.12).toFixed(2)+')');
+  if(flash>0){cx.fillStyle='rgba(255,255,255,'+clamp(flash*3.5,0,.7).toFixed(2)+')';cx.fillRect(0,0,W,H)}
+  cx.restore();
+}
+
+/* ---------- HUD ---------- */
+var elVy=$('tVy'),elVx=$('tVx'),elAng=$('tAng'),elW=$('tWind'),elT=$('tTwr');
+function setV(el,txt,bad){el.textContent=txt;el.className='v '+(bad?'bad':'ok')}
+function updateHud(force){
+  var pc=Math.round(battery);
+  $('batfill').style.width=pc+'%';
+  $('batfill').style.background=pc>40?'#5fd45a':pc>18?'#f2c230':'#e0483a';
+  $('batnum').textContent=pc+'%';
+  var vy=dr.vy/PX,vx=dr.vx/PX,ad=dr.ang*57.2958,w=windNow/PX;
+  setV(elVy,(vy>=0?'+':'-')+Math.abs(vy).toFixed(1)+' m/s',vy>4);
+  setV(elVx,Math.abs(vx).toFixed(1)+' m/s',Math.abs(vx)>3);
+  setV(elAng,(ad>=0?'+':'-')+Math.abs(ad).toFixed(0)+'°',Math.abs(ad)>12);
+  elW.textContent=(w>=0?'→ ':'← ')+Math.abs(w).toFixed(1);elW.className='v';
+  var twr=2.8/mass();
+  elT.textContent=twr.toFixed(2);elT.className='v '+(twr>1.3?'ok':'bad');
+}
+
+/* ---------- input ---------- */
+var KEYMAP={ArrowUp:'up',w:'up',W:'up',' ':'up',ArrowDown:'down',s:'down',S:'down',ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right'};
+window.addEventListener('keydown',function(e){
+  var k=KEYMAP[e.key];
+  if(k){
+    e.preventDefault();
+    if(st==='ready'){initAudio();startFlight()}
+    K[k]=true;return;
+  }
+  if(e.key==='p'||e.key==='P'){togglePid();return}
+  if(e.key==='m'||e.key==='M'){toggleSnd();return}
+  if(e.key==='r'||e.key==='R'){reset();return}
+  if(e.key==='Enter'&&overlayAct){e.preventDefault();doAct()}
+});
+window.addEventListener('keyup',function(e){var k=KEYMAP[e.key];if(k)K[k]=false});
+window.addEventListener('blur',function(){K.left=K.right=K.up=K.down=false});
+Array.prototype.forEach.call(document.querySelectorAll('[data-k]'),function(el){
+  var k=el.getAttribute('data-k');
+  function dn(e){e.preventDefault();try{el.setPointerCapture(e.pointerId)}catch(x){}
+    if(st==='ready'){initAudio();startFlight()}
+    K[k]=true;el.classList.add('on')}
+  function up(e){K[k]=false;el.classList.remove('on')}
+  el.addEventListener('pointerdown',dn);
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('lostpointercapture',up);
+  el.addEventListener('contextmenu',function(e){e.preventDefault()});
+});
+function togglePid(){
+  pid=!pid;$('bPid').textContent='자동 수평 '+(pid?'ON':'OFF');$('bPid').classList.toggle('on',pid);
+  initAudio();sfx('pid');
+}
+function toggleSnd(){
+  muted=!muted;$('bSnd').textContent='소리 '+(muted?'OFF':'ON');$('bSnd').classList.toggle('on',!muted);
+  if(!muted){initAudio();nb(12,.2,'triangle',.4)}
+}
+$('bPid').addEventListener('click',togglePid);
+$('bSnd').addEventListener('click',toggleSnd);
+$('bSnd').classList.add('on');
+$('card').addEventListener('click',function(e){if(e.target.closest('[data-act]'))doAct()});
+
+/* ---------- loop ---------- */
+var last=0,acc=0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  if(!last)last=ts;
+  var dtt=Math.min(.1,(ts-last)/1000);last=ts;acc+=dtt;
+  while(acc>=1/60){update(1/60);acc-=1/60}
+  hudT+=dtt;if(hudT>.1){hudT=0;updateHud()}
+  draw();
+}
+buildChips();
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
